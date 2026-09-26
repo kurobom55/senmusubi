@@ -123,6 +123,21 @@ body.won #board,body.won #lines,body.won #top{opacity:0;pointer-events:none}
 .seg button{font:inherit;font-size:16px;border:none;background:transparent;color:var(--ink);padding:5px 13px;border-radius:999px}
 .seg button.on{background:#ff924c;color:#fff}
 .seg sup{font-size:9px;margin-left:2px;letter-spacing:-1px}
+.seg button{padding:5px 11px}
+
+/* みち */
+#road{position:absolute;inset:0;width:100%;height:100%;display:none;overflow:visible}
+body.michi #road{display:block}
+body.michi .col,body.michi #countBtn{display:none}
+.edge{stroke:#b9793f;stroke-width:8;stroke-linejoin:round;stroke-linecap:round;transition:stroke .2s}
+.edge.bad{stroke:#ff3b3b;stroke-width:10}
+.edge.shake{animation:jit .07s linear 12}
+@keyframes jit{25%{transform:translate(4px,-4px)}50%{transform:translate(-4px,3px)}75%{transform:translate(3px,4px)}}
+.ring{animation:ringp 1.2s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes ringp{50%{transform:scale(1.3);opacity:.45}}
+.bob{animation:bob 1s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+#road .go .bob{animation:none}
+@keyframes bob{50%{transform:translateY(-10%)}}
 
 /* できた！ */
 #title{
@@ -200,7 +215,7 @@ body.won #board,body.won #lines,body.won #top{opacity:0;pointer-events:none}
 </div>
 
 <div id="dino" aria-hidden="true"></div>
-<div id="board"><div class="col left" id="leftCol"></div><div class="col right" id="rightCol"></div></div>
+<div id="board"><div class="col left" id="leftCol"></div><div class="col right" id="rightCol"></div><svg id="road"></svg></div>
 <svg id="lines"><g id="linesG"></g></svg>
 
 <div id="top">
@@ -208,6 +223,7 @@ body.won #board,body.won #lines,body.won #top{opacity:0;pointer-events:none}
     <button type="button" data-m="e">え</button>
     <button type="button" data-m="kazu">123</button>
     <button type="button" data-m="abc">ABC</button>
+    <button type="button" data-m="michi">みち</button>
   </div>
   <button id="countBtn" type="button">ペア 3</button>
   <button id="soundBtn" type="button">🔊</button>
@@ -384,7 +400,7 @@ const board=$('#board'), leftCol=$('#leftCol'), rightCol=$('#rightCol'), linesG=
 function load(k,d){try{const v=localStorage.getItem('senmusubi_'+k);return v==null?d:JSON.parse(v)}catch(e){return d}}
 function save(k,v){try{localStorage.setItem('senmusubi_'+k,JSON.stringify(v))}catch(e){}}
 let pairCount=load('n',3), soundOn=load('snd',true), mode=load('mode','e'), clears={kazu:load('kazuN',0),abc:load('abcN',0)};
-if(!MODES[mode]) mode='e';
+if(!MODES[mode] && mode!=='michi') mode='e';
 let dinoBag=[], dino=null;
 let matched=0, links=[], drag=null, won=false, pairs={};
 function nextDino(){
@@ -449,6 +465,7 @@ function render(col,arr,side){
 function setProgress(){dinoEl.style.setProperty('--p',(.06+.3*matched/pairCount).toFixed(3))}
 function sizeCards(){
   const h=board.clientHeight, w=board.clientWidth;
+  if(mode==='michi'){ if(R && !md && !R.done && (Math.abs(w-R.W)>40||Math.abs(h-R.H)>40)) setupRoad(); return; }
   const s=Math.max(60,Math.min(h/pairCount-20,w*.27,190));
   document.documentElement.style.setProperty('--cardsize',s+'px');
   requestAnimationFrame(redraw);
@@ -456,17 +473,25 @@ function sizeCards(){
 function updateTop(){
   document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.m===mode));
   Object.keys(LEVELS).forEach(m=>{$(`#modeSeg [data-m="${m}"]`).innerHTML=(m==='kazu'?'123':'ABC')+'<sup>'+'★'.repeat(level(m))+'</sup>'});
+  $('#modeSeg [data-m="michi"]').innerHTML='みち<sup>'+'★'.repeat(michiLevel())+'</sup>';
   $('#countBtn').textContent='ペア '+pairCount;
   $('#soundBtn').textContent=soundOn?'🔊':'🔇';
 }
 function newRound(){
   won=false; matched=0; links=[]; drag=null; linesG.innerHTML='';
   document.body.classList.remove('won'); $('#title').classList.remove('show'); $('#next').classList.remove('show');
+  document.body.classList.toggle('michi',mode==='michi');
+  if(mode==='michi'){
+    leftCol.innerHTML=''; rightCol.innerHTML='';
+    dinoEl.className='hint'; dinoEl.innerHTML=dino.svg; dinoEl.style.setProperty('--p','.06');
+    updateTop(); setupRoad(); return;
+  }
+  roadSvg.innerHTML=''; R=null;
   const list=MODES[mode](pairCount);
   pairs={}; list.forEach((p,i)=>{p.color=COLORS[i];pairs[p.k]=p});
-  const L=shuffle(list); let R=shuffle(list), tries=0;
-  while(pairCount>1 && R.some((x,i)=>x===L[i]) && tries++<30) R=shuffle(list);
-  render(leftCol,L,'L'); render(rightCol,R,'R');
+  const L=shuffle(list); let Rt=shuffle(list), tries=0;
+  while(pairCount>1 && Rt.some((x,i)=>x===L[i]) && tries++<30) Rt=shuffle(list);
+  render(leftCol,L,'L'); render(rightCol,Rt,'R');
   dinoEl.className='hint'; dinoEl.innerHTML=dino.svg; setProgress();
   updateTop(); sizeCards();
 }
@@ -485,6 +510,7 @@ function findTarget(x,y,side){
 function clearHover(){document.querySelectorAll('.card.hover').forEach(c=>c.classList.remove('hover'))}
 
 board.addEventListener('pointerdown',e=>{
+  if(mode==='michi'){michiDown(e);return}
   const card=e.target.closest('.card');
   if(!card||card.classList.contains('done')||drag||won) return;
   e.preventDefault(); ac(); tick();
@@ -492,12 +518,14 @@ board.addEventListener('pointerdown',e=>{
   drag={card,id:e.pointerId,p,g}; card.classList.add('active');
 });
 window.addEventListener('pointermove',e=>{
+  if(md){michiMove(e);return}
   if(!drag||e.pointerId!==drag.id) return;
   setLine(drag.g,drag.p,{x:e.clientX,y:e.clientY});
   const t=findTarget(e.clientX,e.clientY,drag.card.dataset.side);
   clearHover(); if(t) t.classList.add('hover');
 });
 function endDrag(e){
+  if(md){michiUp(e);return}
   if(!drag||e.pointerId!==drag.id) return;
   const {card,g}=drag; drag=null; clearHover(); card.classList.remove('active');
   const t=e.type==='pointerup'?findTarget(e.clientX,e.clientY,card.dataset.side):null;
@@ -517,6 +545,133 @@ function endDrag(e){
 window.addEventListener('pointerup',endDrag);
 window.addEventListener('pointercancel',endDrag);
 document.addEventListener('gesturestart',e=>e.preventDefault());
+
+/* ===== みち ===== */
+const roadSvg=$('#road');
+let R=null, md=null;
+const MS=Object.assign({c:0,h:[],f:false},load('michi',{}));
+if(!Array.isArray(MS.h)) MS.h=[];
+/* ★1: 太い道・ゆるいカーブ / ★2: 少し細く / ★3: 細くてカーブ多め（ここまでは、はみ出しても続きから）
+   ★4: ★3と同じ道で、はみ出すとスタートからやり直し
+   ★2は10回、★3は20回クリアで。★4は★3で最近10回中8回ノーミスになったら（5回中3回未満に落ちたら★3に戻る） */
+function michiLevel(){ if(MS.c<10) return 1; if(MS.c<20) return 2; return MS.f?4:3 }
+const MPAR={1:{hw:.17,amp:.10,wav:1},2:{hw:.13,amp:.20,wav:1.5},3:{hw:.10,amp:.26,wav:2.5},4:{hw:.10,amp:.26,wav:2.5}};
+function svgEl(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e}
+const toD=pts=>pts.map((p,i)=>(i?'L':'M')+p.x.toFixed(1)+' '+p.y.toFixed(1)).join('');
+const lp=e=>{const r=board.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}};
+
+function setupRoad(){
+  md=null;
+  const W=board.clientWidth, H=board.clientHeight, lv=michiLevel(), P=MPAR[lv];
+  // 縦長の画面（スマホ縦）は上→下の道、横長（タブレット・スマホ横）は左→右の道
+  const vert=H>W*1.1, Lg=vert?H:W, Cr=vert?W:H;
+  const hw=Math.max(34,Math.min(Cr*P.hw,95)), mx=Math.max(hw+14,Lg*.06);
+  const u0=mx, u1=Lg-mx, A=Math.max(0,Math.min(Cr*P.amp,Cr/2-hw-16)), ph=Math.random()*Math.PI*2;
+  const N=240, C=[];
+  for(let i=0;i<N;i++){
+    const t=i/(N-1), u=u0+(u1-u0)*t, v=Cr/2+A*Math.sin(ph+t*P.wav*Math.PI*2);
+    C.push(vert?{x:v,y:u}:{x:u,y:v});
+  }
+  const Nn=C.map((p,i)=>{const a=C[Math.max(0,i-1)],b=C[Math.min(N-1,i+1)],tx=b.x-a.x,ty=b.y-a.y,l=Math.hypot(tx,ty)||1;return{x:ty/l,y:-tx/l}});
+  R={W,H,hw,C,Nn,N,lv,strokes:[],cur:null,resume:{...C[0]},far:0,miss:0,done:false};
+  drawRoad(); idle();
+}
+function edgePts(side,zig,center){
+  const {C,Nn,hw}=R, off=hw+4, pts=[];
+  for(let i=0;i<R.N;i++){
+    const inWin=zig&&Math.abs(i-center)<=30;
+    if(inWin&&i%3) continue;
+    const z=inWin?((i/3)%2?10:-8)*(1-Math.abs(i-center)/36):0;
+    pts.push({x:C[i].x+Nn[i].x*side*(off+z),y:C[i].y+Nn[i].y*side*(off+z)});
+  }
+  return pts;
+}
+function drawRoad(){
+  roadSvg.innerHTML=''; roadSvg.setAttribute('width',R.W); roadSvg.setAttribute('height',R.H);
+  const d=toD(R.C), g=svgEl('g',{},roadSvg), hw=R.hw;
+  svgEl('path',{d,stroke:'#b9793f','stroke-width':hw*2+16,'stroke-linecap':'round','stroke-linejoin':'round',fill:'none'},g);
+  svgEl('path',{d,stroke:'#f6dca8','stroke-width':hw*2,'stroke-linecap':'round','stroke-linejoin':'round',fill:'none'},g);
+  svgEl('path',{d,stroke:'#fff','stroke-width':Math.max(4,hw*.08),'stroke-dasharray':`${hw*.45} ${hw*.55}`,'stroke-linecap':'round',fill:'none',opacity:.85},g);
+  R.edge={'1':svgEl('path',{d:toD(edgePts(1)),class:'edge',fill:'none'},g),'-1':svgEl('path',{d:toD(edgePts(-1)),class:'edge',fill:'none'},g)};
+  const st=R.C[0], en=R.C[R.N-1], s=hw*1.6;
+  svgEl('circle',{cx:st.x,cy:st.y,r:hw*.8,fill:'#8ac926',opacity:.35},g);
+  const fg=svgEl('g',{transform:`translate(${en.x} ${en.y})`},g);
+  fg.innerHTML=`<circle r="${hw*.85}" fill="#fff" opacity=".75"/><line x1="${-s*.12}" y1="${s*.4}" x2="${-s*.12}" y2="${-s*.5}" stroke="#6b4226" stroke-width="${s*.07}" stroke-linecap="round"/><path d="M${-s*.12} ${-s*.5}L${s*.42} ${-s*.32}L${-s*.12} ${-s*.12}Z" fill="#ff595e"/>`;
+  R.trace=svgEl('path',{fill:'none',stroke:'#ff595e','stroke-width':Math.max(10,hw*.34),'stroke-linecap':'round','stroke-linejoin':'round'},roadSvg);
+  R.ring=svgEl('circle',{r:hw*.72,fill:'none',stroke:'#ffd23f','stroke-width':7,class:'ring'},roadSvg);
+  R.ps=hw*1.35; R.pen=svgEl('g',{},roadSvg);
+  const bob=svgEl('g',{class:'bob'},R.pen);
+  bob.innerHTML=itemBy('car').svg.replace('<svg viewBox="0 0 100 100">',`<svg width="${R.ps}" height="${R.ps}" viewBox="0 0 100 100">`);
+}
+function drawTrace(){R.trace.setAttribute('d',R.strokes.map(toD).join('')+(R.cur?toD(R.cur):''))}
+function placePen(p){R.pen.setAttribute('transform',`translate(${p.x-R.ps/2} ${p.y-R.ps*.6})`)}
+function idle(){
+  R.pen.classList.remove('go'); placePen(R.resume);
+  R.ring.setAttribute('cx',R.resume.x); R.ring.setAttribute('cy',R.resume.y); R.ring.style.display='';
+}
+function nearest(q){
+  const C=R.C; let best=Infinity,bi=0,side=1;
+  for(let i=0;i<R.N-1;i++){
+    const a=C[i],b=C[i+1],vx=b.x-a.x,vy=b.y-a.y,l2=vx*vx+vy*vy||1;
+    let t=((q.x-a.x)*vx+(q.y-a.y)*vy)/l2; t=t<0?0:t>1?1:t;
+    const px=a.x+vx*t-q.x,py=a.y+vy*t-q.y,d=px*px+py*py;
+    if(d<best){best=d;bi=i+t;side=(vx*(q.y-a.y)-vy*(q.x-a.x))<0?1:-1}
+  }
+  return{d:Math.sqrt(best),i:bi,side};
+}
+function buzz(){tone(155,0,.2,'square',.12);tone(140,.26,.4,'square',.12);try{navigator.vibrate&&navigator.vibrate(250)}catch(e){}}
+
+function michiDown(e){
+  if(!R||R.done||md||won) return;
+  const p=lp(e);
+  if(Math.hypot(p.x-R.resume.x,p.y-R.resume.y)>Math.max(R.hw*1.3,56)) return;
+  e.preventDefault(); ac(); tick();
+  md={id:e.pointerId,last:{...R.resume}}; R.cur=[{...R.resume}];
+  R.ring.style.display='none'; R.pen.classList.add('go');
+}
+function michiMove(e){
+  if(e.pointerId!==md.id) return;
+  const p=lp(e), a=md.last, steps=Math.max(1,Math.ceil(Math.hypot(p.x-a.x,p.y-a.y)/(R.hw/4)));
+  for(let k=1;k<=steps;k++){
+    const q={x:a.x+(p.x-a.x)*k/steps,y:a.y+(p.y-a.y)*k/steps}, n=nearest(q);
+    if(n.d>R.hw){stray(n);return}
+    md.last=q; R.far=Math.max(R.far,n.i);
+    const en=R.C[R.N-1];
+    if(n.i>=R.N-1.5 && Math.hypot(q.x-en.x,q.y-en.y)<R.hw*.9){R.cur.push(q);finishRoad();return}
+  }
+  R.cur.push(md.last); drawTrace(); placePen(md.last);
+  dinoEl.style.setProperty('--p',(.06+.3*R.far/(R.N-1)).toFixed(3));
+}
+function endStroke(){R.strokes.push(R.cur);R.cur=null;const last=md.last;md=null;return last}
+function backToStart(delay){
+  setTimeout(()=>{if(!R||R.done)return;R.strokes=[];R.far=0;R.resume={...R.C[0]};drawTrace();idle();dinoEl.style.setProperty('--p','.06')},delay);
+}
+function stray(n){
+  const last=endStroke(); R.miss++; buzz(); drawTrace();
+  const path=R.edge[String(n.side)];
+  path.setAttribute('d',toD(edgePts(n.side,true,Math.round(n.i))));
+  path.classList.remove('shake'); void path.getBBox(); path.classList.add('shake','bad');
+  clearTimeout(path._t); path._t=setTimeout(()=>{path.setAttribute('d',toD(edgePts(n.side)));path.classList.remove('shake','bad')},950);
+  R.resume=last; idle();
+  if(R.lv===4){R.ring.style.display='none';backToStart(800)}
+}
+function michiUp(e){
+  if(e.pointerId!==md.id) return;
+  const last=endStroke(); R.resume=last; idle();
+  if(R.lv===4){tone(300,0,.15,'sine',.12);R.ring.style.display='none';backToStart(400)}
+}
+function finishRoad(){
+  endStroke(); R.done=true; drawTrace(); placePen(R.C[R.N-1]); R.ring.style.display='none';
+  MS.c++;
+  if(R.lv>=3){
+    MS.h.push(R.miss===0); if(MS.h.length>10) MS.h.shift();
+    if(!MS.f && MS.h.length>=10 && MS.h.filter(Boolean).length>=8){MS.f=true;MS.h=[]}
+    else if(MS.f && MS.h.length>=5 && MS.h.slice(-5).filter(Boolean).length<3){MS.f=false;MS.h=[]}
+  }
+  save('michi',MS);
+  chime(4); burst(lpInv(R.C[R.N-1])); setTimeout(win,300);
+}
+const lpInv=p=>{const r=board.getBoundingClientRect();return{x:p.x+r.left,y:p.y+r.top}};
 
 /* ===== できた！ ===== */
 function burst(p){
@@ -555,6 +710,11 @@ $('#next').addEventListener('click',()=>{ac();tick();nextDino();newRound()});
 document.querySelectorAll('#modeSeg button').forEach(b=>b.addEventListener('click',()=>{
   if(b.dataset.m===mode){
     // 選択中のモードをもう一度押すと、レベルを手動で切り替え（★1→★2→…→★1）
+    if(mode==='michi'){
+      const lv=michiLevel();
+      if(lv===1)MS.c=10; else if(lv===2){MS.c=20;MS.f=false} else if(lv===3){MS.c=Math.max(MS.c,20);MS.f=true} else {MS.c=0;MS.f=false}
+      MS.h=[]; save('michi',MS); ac(); tick(); newRound(); return;
+    }
     if(LEVELS[mode]){const t=LEVELS[mode],lv=level(mode);clears[mode]=lv>=t.length?0:t[lv];save(mode+'N',clears[mode]);ac();tick();newRound()}
     return;
   }
