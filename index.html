@@ -112,6 +112,7 @@ body.won #board,body.won #lines,body.won #top{opacity:0;pointer-events:none}
 #top{
   position:fixed; z-index:5; left:50%; transform:translateX(-50%);
   top:calc(env(safe-area-inset-top,0px) + 10px); display:flex; gap:8px; align-items:center;
+  flex-wrap:wrap; justify-content:center; width:max-content; max-width:calc(100vw - 16px);
   white-space:nowrap; transition:opacity .4s;
 }
 #top > button,.seg{
@@ -122,13 +123,27 @@ body.won #board,body.won #lines,body.won #top{opacity:0;pointer-events:none}
 .seg{display:flex;padding:4px;gap:2px}
 .seg button{font:inherit;font-size:16px;border:none;background:transparent;color:var(--ink);padding:5px 13px;border-radius:999px}
 .seg button.on{background:#ff924c;color:#fff}
+#gameSeg button.on{background:#1982c4}
 .seg sup{font-size:9px;margin-left:2px;letter-spacing:-1px}
 .seg button{padding:5px 11px}
 
 /* みち */
 #road{position:absolute;inset:0;width:100%;height:100%;display:none;overflow:visible}
 body.michi #road{display:block}
-body.michi .col,body.michi #countBtn{display:none}
+body.michi .col,body.michi #countBtn,body.michi #modeSeg{display:none}
+
+/* まんなか */
+#naka{position:absolute;inset:0;display:none}
+body.naka #naka{display:block}
+body.naka .col,body.naka #countBtn{display:none}
+body.naka #lines{z-index:1}
+#naka .card{position:absolute}
+#naka .hub{animation:hubp 2s ease-in-out infinite}
+#naka .hub.hover,#naka .hub.nope,#naka .hub.yay{animation:none}
+#naka .hub.nope{animation:shake .42s ease}
+#naka .hub.yay{animation:yay .55s ease}
+@keyframes hubp{50%{box-shadow:0 0 0 12px rgba(255,210,63,.6),0 7px 0 rgba(40,60,90,.18)}}
+#naka .card.fade{opacity:.25;transition:opacity .5s}
 .edge{stroke:#b9793f;stroke-width:8;stroke-linejoin:round;stroke-linecap:round;transition:stroke .2s}
 .edge.bad{stroke:#ff3b3b;stroke-width:10}
 .edge.shake{animation:jit .07s linear 12}
@@ -215,15 +230,19 @@ body.michi .col,body.michi #countBtn{display:none}
 </div>
 
 <div id="dino" aria-hidden="true"></div>
-<div id="board"><div class="col left" id="leftCol"></div><div class="col right" id="rightCol"></div><svg id="road"></svg></div>
+<div id="board"><div class="col left" id="leftCol"></div><div class="col right" id="rightCol"></div><svg id="road"></svg><div id="naka"></div></div>
 <svg id="lines"><g id="linesG"></g></svg>
 
 <div id="top">
+  <div class="seg" id="gameSeg">
+    <button type="button" data-g="yoko">よこ</button>
+    <button type="button" data-g="naka">まんなか</button>
+    <button type="button" data-g="michi">みち</button>
+  </div>
   <div class="seg" id="modeSeg">
     <button type="button" data-m="e">え</button>
     <button type="button" data-m="kazu">123</button>
     <button type="button" data-m="abc">ABC</button>
-    <button type="button" data-m="michi">みち</button>
   </div>
   <button id="countBtn" type="button">ペア 3</button>
   <button id="soundBtn" type="button">🔊</button>
@@ -399,8 +418,13 @@ const $ = s => document.querySelector(s);
 const board=$('#board'), leftCol=$('#leftCol'), rightCol=$('#rightCol'), linesG=$('#linesG'), dinoEl=$('#dino');
 function load(k,d){try{const v=localStorage.getItem('senmusubi_'+k);return v==null?d:JSON.parse(v)}catch(e){return d}}
 function save(k,v){try{localStorage.setItem('senmusubi_'+k,JSON.stringify(v))}catch(e){}}
-let pairCount=load('n',3), soundOn=load('snd',true), mode=load('mode','e'), clears={kazu:load('kazuN',0),abc:load('abcN',0)};
-if(!MODES[mode] && mode!=='michi') mode='e';
+let pairCount=load('n',3), soundOn=load('snd',true), mode=load('mode','e'), game=load('game',null),
+    clears={kazu:load('kazuN',0),abc:load('abcN',0),naka:load('nakaN',0)};
+if(mode==='michi'){game=game||'michi';mode='e'}
+if(!['yoko','naka','michi'].includes(game)) game='yoko';
+if(!MODES[mode]) mode='e';
+const stars=n=>'<sup>'+'★'.repeat(n)+'</sup>';
+function fitBoard(){board.style.top=($('#top').getBoundingClientRect().bottom+8)+'px'}
 let dinoBag=[], dino=null;
 let matched=0, links=[], drag=null, won=false, pairs={};
 function nextDino(){
@@ -449,7 +473,7 @@ function setLine(g,a,b){
   g.querySelectorAll('line').forEach(el=>{el.setAttribute('x1',a.x);el.setAttribute('y1',a.y);el.setAttribute('x2',b.x);el.setAttribute('y2',b.y)});
   const c=g.querySelector('circle'); c.setAttribute('cx',b.x); c.setAttribute('cy',b.y);
 }
-function dotPos(card){const r=card.querySelector('.dot').getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2}}
+function dotPos(card){const r=(card.querySelector('.dot')||card).getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2}}
 function redraw(){links.forEach(k=>setLine(k.g,dotPos(k.a),dotPos(k.b)))}
 
 /* ===== ラウンド ===== */
@@ -464,24 +488,37 @@ function render(col,arr,side){
 }
 function setProgress(){dinoEl.style.setProperty('--p',(.06+.3*matched/pairCount).toFixed(3))}
 function sizeCards(){
+  fitBoard();
   const h=board.clientHeight, w=board.clientWidth;
-  if(mode==='michi'){ if(R && !md && !R.done && (Math.abs(w-R.W)>40||Math.abs(h-R.H)>40)) setupRoad(); return; }
+  if(game==='naka'){nakaLayout();requestAnimationFrame(redraw);return}
+  if(game==='michi'){ if(R && !md && !R.done && (Math.abs(w-R.W)>40||Math.abs(h-R.H)>40)) setupRoad(); return; }
   const s=Math.max(60,Math.min(h/pairCount-20,w*.27,190));
   document.documentElement.style.setProperty('--cardsize',s+'px');
   requestAnimationFrame(redraw);
 }
 function updateTop(){
+  document.querySelectorAll('#gameSeg button').forEach(b=>b.classList.toggle('on',b.dataset.g===game));
   document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.m===mode));
-  Object.keys(LEVELS).forEach(m=>{$(`#modeSeg [data-m="${m}"]`).innerHTML=(m==='kazu'?'123':'ABC')+'<sup>'+'★'.repeat(level(m))+'</sup>'});
-  $('#modeSeg [data-m="michi"]').innerHTML='みち<sup>'+'★'.repeat(michiLevel())+'</sup>';
+  $('#gameSeg [data-g="naka"]').innerHTML='まんなか'+stars(nakaLevel());
+  $('#gameSeg [data-g="michi"]').innerHTML='みち'+stars(michiLevel());
+  $('#modeSeg [data-m="kazu"]').innerHTML='123'+(game==='yoko'?stars(level('kazu')):'');
+  $('#modeSeg [data-m="abc"]').innerHTML='ABC'+(game==='yoko'?stars(level('abc')):'');
   $('#countBtn').textContent='ペア '+pairCount;
   $('#soundBtn').textContent=soundOn?'🔊':'🔇';
+  fitBoard();
 }
 function newRound(){
   won=false; matched=0; links=[]; drag=null; linesG.innerHTML='';
   document.body.classList.remove('won'); $('#title').classList.remove('show'); $('#next').classList.remove('show');
-  document.body.classList.toggle('michi',mode==='michi');
-  if(mode==='michi'){
+  document.body.classList.toggle('michi',game==='michi');
+  document.body.classList.toggle('naka',game==='naka');
+  nakaEl.innerHTML=''; NK=null;
+  if(game==='naka'){
+    leftCol.innerHTML=''; rightCol.innerHTML=''; roadSvg.innerHTML=''; R=null;
+    dinoEl.className='hint'; dinoEl.innerHTML=dino.svg;
+    updateTop(); nakaRound(); return;
+  }
+  if(game==='michi'){
     leftCol.innerHTML=''; rightCol.innerHTML='';
     dinoEl.className='hint'; dinoEl.innerHTML=dino.svg; dinoEl.style.setProperty('--p','.06');
     updateTop(); setupRoad(); return;
@@ -510,7 +547,8 @@ function findTarget(x,y,side){
 function clearHover(){document.querySelectorAll('.card.hover').forEach(c=>c.classList.remove('hover'))}
 
 board.addEventListener('pointerdown',e=>{
-  if(mode==='michi'){michiDown(e);return}
+  if(game==='michi'){michiDown(e);return}
+  if(game==='naka'){nakaDown(e);return}
   const card=e.target.closest('.card');
   if(!card||card.classList.contains('done')||drag||won) return;
   e.preventDefault(); ac(); tick();
@@ -519,6 +557,7 @@ board.addEventListener('pointerdown',e=>{
 });
 window.addEventListener('pointermove',e=>{
   if(md){michiMove(e);return}
+  if(drag&&drag.naka){nakaMove(e);return}
   if(!drag||e.pointerId!==drag.id) return;
   setLine(drag.g,drag.p,{x:e.clientX,y:e.clientY});
   const t=findTarget(e.clientX,e.clientY,drag.card.dataset.side);
@@ -526,6 +565,7 @@ window.addEventListener('pointermove',e=>{
 });
 function endDrag(e){
   if(md){michiUp(e);return}
+  if(drag&&drag.naka){nakaUp(e);return}
   if(!drag||e.pointerId!==drag.id) return;
   const {card,g}=drag; drag=null; clearHover(); card.classList.remove('active');
   const t=e.type==='pointerup'?findTarget(e.clientX,e.clientY,card.dataset.side):null;
@@ -545,6 +585,89 @@ function endDrag(e){
 window.addEventListener('pointerup',endDrag);
 window.addEventListener('pointercancel',endDrag);
 document.addEventListener('gesturestart',e=>e.preventDefault());
+
+/* ===== まんなか ===== */
+const nakaEl=$('#naka');
+/* ★1: 周り3つ、ぜんぶ同じもの / ★2: 同じもの3つ＋ちがうもの1つ / ★3: 同じもの3つ＋ちがうもの3つ（数字・文字は色もバラバラ）
+   数字は「その★になるのに必要なクリア回数」 */
+const NAKA_LV=[0,10,20];
+function nakaLevel(){let lv=1;NAKA_LV.forEach((v,i)=>{if(clears.naka>=v)lv=i+1});return lv}
+let NK=null;
+function nakaRound(){
+  const lv=nakaLevel(), nOther=lv===1?0:lv===2?1:3, NM=3;
+  let pool;
+  if(mode==='e') pool=ITEMS.map(it=>({k:it.k,say:it.n,art:()=>it.svg}));
+  else if(mode==='kazu') pool=[1,2,3,4,5,6].map(v=>({k:'n'+v,say:YOMI[v-1],art:c=>glyph(v,c)}));
+  else pool='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(ch=>({k:ch,say:ch,lang:'en-US',art:c=>glyph(ch,c)}));
+  const pick=shuffle(pool), tgt=pick[0], others=pick.slice(1,1+nOther);
+  const c0=GLYPH_COLORS[Math.random()*GLYPH_COLORS.length|0], rest=shuffle(GLYPH_COLORS.filter(c=>c!==c0));
+  const anyC=()=>GLYPH_COLORS[Math.random()*GLYPH_COLORS.length|0];
+  const items=[];
+  for(let i=0;i<NM;i++) items.push({p:tgt,c:lv<3?c0:anyC()});
+  others.forEach((o,i)=>items.push({p:o,c:lv<3?rest[i%rest.length]:anyC()}));
+  NK={tgt,need:NM,sur:shuffle(items)};
+  const mk=(p,c,hub)=>{
+    const d=document.createElement('div');
+    d.className='card'+(hub?' hub':''); d.dataset.key=p.k; d.setAttribute('aria-label',p.say);
+    d.innerHTML=`<div class="art">${p.art(c)}</div>`; nakaEl.appendChild(d); return d;
+  };
+  NK.hub=mk(tgt,c0,true);
+  NK.els=NK.sur.map(it=>mk(it.p,it.c,false));
+  dinoEl.style.setProperty('--p','.06');
+  nakaLayout();
+}
+function nakaLayout(){
+  if(!NK) return;
+  const W=board.clientWidth, H=board.clientHeight, n=NK.els.length;
+  const s=Math.max(60,Math.min(W*.24,H*.2,170)), hs=s*1.3;
+  const rx=Math.max(0,W/2-s/2-6), ry=Math.max(0,H/2-s/2-6);
+  const put=(el,x,y,size)=>{el.style.setProperty('--cardsize',size+'px');el.style.left=(x-size/2)+'px';el.style.top=(y-size/2)+'px'};
+  put(NK.hub,W/2,H/2,hs);
+  NK.els.forEach((el,i)=>{const a=-Math.PI/2+i*2*Math.PI/n;put(el,W/2+rx*Math.cos(a),H/2+ry*Math.sin(a),s)});
+}
+function nakaTarget(x,y,from){
+  const cands=from===NK.hub?NK.els.filter(e=>!e.classList.contains('done')):[NK.hub];
+  let best=null,bd=Infinity;
+  cands.forEach(c=>{
+    const r=c.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2, d=Math.hypot(x-cx,y-cy);
+    const reach=r.width*(c===NK.hub?.95:.7);   // まんなかは大きめに吸い寄せる
+    if(d<reach&&d<bd){best=c;bd=d}
+  });
+  return best;
+}
+function nakaDown(e){
+  const card=e.target.closest('#naka .card');
+  if(!NK||!card||card.classList.contains('done')||drag||won) return;
+  e.preventDefault(); ac(); tick();
+  const p=dotPos(card), g=makeLine('#3a3a5c'); setLine(g,p,p);
+  drag={card,id:e.pointerId,p,g,naka:true}; card.classList.add('active');
+}
+function nakaMove(e){
+  if(e.pointerId!==drag.id) return;
+  const t=nakaTarget(e.clientX,e.clientY,drag.card);
+  clearHover(); if(t) t.classList.add('hover');
+  setLine(drag.g,drag.p,t?dotPos(t):{x:e.clientX,y:e.clientY});
+}
+function nakaUp(e){
+  if(e.pointerId!==drag.id) return;
+  const {card,g}=drag; drag=null; clearHover(); card.classList.remove('active');
+  const t=e.type==='pointerup'?nakaTarget(e.clientX,e.clientY,card):null;
+  g.remove();
+  if(!t) return;                              // 周りどうし・何もない所 → 線が戻るだけ
+  const sur=card===NK.hub?t:card, hub=NK.hub;
+  if(sur.dataset.key===NK.tgt.k){
+    const color=COLORS[matched%COLORS.length], pg=makeLine(color);
+    setLine(pg,dotPos(sur),dotPos(hub)); links.push({a:sur,b:hub,g:pg});
+    sur.style.setProperty('--c',color); sur.classList.add('done');
+    hub.classList.remove('yay'); void hub.offsetWidth; hub.classList.add('yay');
+    chime(matched); burst(dotPos(sur)); matched++;
+    dinoEl.style.setProperty('--p',(.06+.3*matched/NK.need).toFixed(3));
+    if(matched===NK.need){NK.els.forEach(el=>{if(!el.classList.contains('done'))el.classList.add('fade')});setTimeout(win,350)}
+    else speak(NK.tgt.say,NK.tgt.lang);
+  }else{
+    boing();[sur,hub].forEach(c=>{c.classList.remove('nope');void c.offsetWidth;c.classList.add('nope')});
+  }
+}
 
 /* ===== みち ===== */
 const roadSvg=$('#road');
@@ -694,7 +817,8 @@ function confetti(){
 }
 function win(){
   won=true;
-  if(LEVELS[mode]){clears[mode]++;save(mode+'N',clears[mode])}
+  if(game==='yoko'&&LEVELS[mode]){clears[mode]++;save(mode+'N',clears[mode])}
+  if(game==='naka'){clears.naka++;save('nakaN',clears.naka)}
   speak(`できたね！ ${dino.n}だよ！`); fanfare();
   setTimeout(()=>{document.body.classList.add('won');dinoEl.className='reveal'+(dino.fly?' fly':'');confetti()},450);
   setTimeout(()=>{$('#dinoName').textContent=dino.n;$('#title').classList.add('show');$('#next').classList.add('show')},1300);
@@ -707,15 +831,23 @@ dinoEl.addEventListener('pointerdown',()=>{
 $('#next').addEventListener('click',()=>{ac();tick();nextDino();newRound()});
 
 /* ===== 保護者ボタン ===== */
-document.querySelectorAll('#modeSeg button').forEach(b=>b.addEventListener('click',()=>{
-  if(b.dataset.m===mode){
-    // 選択中のモードをもう一度押すと、レベルを手動で切り替え（★1→★2→…→★1）
-    if(mode==='michi'){
+// 選択中のボタンをもう一度押すと、★を手動で切り替え（★1→★2→…→★1）
+document.querySelectorAll('#gameSeg button').forEach(b=>b.addEventListener('click',()=>{
+  if(b.dataset.g===game){
+    if(game==='michi'){
       const lv=michiLevel();
       if(lv===1)MS.c=10; else if(lv===2){MS.c=20;MS.f=false} else if(lv===3){MS.c=Math.max(MS.c,20);MS.f=true} else {MS.c=0;MS.f=false}
-      MS.h=[]; save('michi',MS); ac(); tick(); newRound(); return;
+      MS.h=[]; save('michi',MS); ac(); tick(); newRound();
+    }else if(game==='naka'){
+      const lv=nakaLevel(); clears.naka=lv>=NAKA_LV.length?0:NAKA_LV[lv]; save('nakaN',clears.naka); ac(); tick(); newRound();
     }
-    if(LEVELS[mode]){const t=LEVELS[mode],lv=level(mode);clears[mode]=lv>=t.length?0:t[lv];save(mode+'N',clears[mode]);ac();tick();newRound()}
+    return;
+  }
+  game=b.dataset.g; save('game',game); ac(); tick(); newRound();
+}));
+document.querySelectorAll('#modeSeg button').forEach(b=>b.addEventListener('click',()=>{
+  if(b.dataset.m===mode){
+    if(game==='yoko'&&LEVELS[mode]){const t=LEVELS[mode],lv=level(mode);clears[mode]=lv>=t.length?0:t[lv];save(mode+'N',clears[mode]);ac();tick();newRound()}
     return;
   }
   mode=b.dataset.m; save('mode',mode); ac(); tick(); newRound();
