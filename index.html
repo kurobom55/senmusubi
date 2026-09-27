@@ -187,6 +187,19 @@ body.naka #lines{z-index:1}
 @keyframes cpwave{25%{transform:rotate(-14deg) scale(1.1)}75%{transform:rotate(14deg) scale(1.1)}}
 @keyframes bob{50%{transform:translateY(-10%)}}
 
+/* なまえ表示 */
+#sayLabel{
+  position:fixed; z-index:6; left:50%; top:50%; pointer-events:none;
+  transform:translate(-50%,-50%) scale(.6); opacity:0; transition:transform .3s cubic-bezier(.2,1.6,.4,1),opacity .25s;
+  background:#fff; color:var(--ink); border-radius:999px; padding:.12em .7em .18em;
+  font-size:clamp(44px,12vw,110px); line-height:1.2; white-space:nowrap;
+  box-shadow:0 8px 0 rgba(40,60,90,.18),0 0 0 8px rgba(255,210,63,.85);
+}
+#sayLabel.show{opacity:.96;transform:translate(-50%,-50%) scale(1)}
+#sayLabel.again{animation:sayp .5s ease}
+@keyframes sayp{40%{transform:translate(-50%,-50%) scale(1.12)}}
+#voiceBtn.off{text-decoration:line-through;opacity:.6}
+
 /* できた！ */
 #title{
   position:fixed; z-index:6; left:0; right:0; text-align:center; pointer-events:none;
@@ -279,9 +292,11 @@ body.naka #lines{z-index:1}
     <button type="button" data-m="abc">ABC</button>
   </div>
   <button id="countBtn" type="button">ペア 3</button>
+  <button id="voiceBtn" type="button">こえ</button>
   <button id="soundBtn" type="button">🔊</button>
 </div>
 
+<div id="sayLabel" aria-live="polite"></div>
 <div id="title"><h1>できた！</h1><br><p id="dinoName"></p></div>
 <button id="next" type="button">つぎ ▶</button>
 
@@ -452,7 +467,7 @@ const $ = s => document.querySelector(s);
 const board=$('#board'), leftCol=$('#leftCol'), rightCol=$('#rightCol'), linesG=$('#linesG'), dinoEl=$('#dino');
 function load(k,d){try{const v=localStorage.getItem('senmusubi_'+k);return v==null?d:JSON.parse(v)}catch(e){return d}}
 function save(k,v){try{localStorage.setItem('senmusubi_'+k,JSON.stringify(v))}catch(e){}}
-let pairCount=load('n',3), soundOn=load('snd',true), mode=load('mode','e'), game=load('game',null),
+let pairCount=load('n',3), soundOn=load('snd',true), voiceOn=load('voice',true), mode=load('mode','e'), game=load('game',null),
     clears={kazu:load('kazuN',0),abc:load('abcN',0),naka:load('nakaN',0),oku:load('okuN',0)};
 if(mode==='michi'){game=game||'michi';mode='e'}
 if(!['yoko','naka','michi','oku'].includes(game)) game='yoko';
@@ -488,9 +503,48 @@ const boing = ()=>tone(340,0,.32,'triangle',.22,150);
 function chime(i){const b=[523.25,587.33,659.25,783.99,880][i%5];tone(b,0,.3,'sine',.25);tone(b*1.5,.09,.35,'sine',.18);tone(b*2,.18,.45,'triangle',.1)}
 function fanfare(){[523,659,784,1047].forEach((f,i)=>tone(f,.25+i*.13,.3,'triangle',.22));[523,659,784].forEach(f=>tone(f,.8,1.2,'sine',.12))}
 function roar(){tone(170,0,.7,'sawtooth',.07,70);tone(110,0,.7,'triangle',.18,60)}
-function speak(t,lang){
-  if(!soundOn||!('speechSynthesis' in window)) return;
-  try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang=lang||'ja-JP';u.rate=.9;u.pitch=1.25;speechSynthesis.speak(u)}catch(e){}
+/* ===== こえ =====
+   効果音が鳴り終わってから、ゆっくり・はっきり名前を読む → 少し間をあけてもう一度 */
+const canSpeak=()=>soundOn&&voiceOn&&('speechSynthesis' in window);
+function pickVoice(lang){
+  try{
+    const vs=speechSynthesis.getVoices(), two=lang.slice(0,2);
+    const pref=two==='ja'?['Kyoko','O-ren','Otoya','Google 日本語']:['Samantha','Karen','Google US English'];
+    for(const p of pref){const v=vs.find(v=>v.name.includes(p)&&v.lang.startsWith(two));if(v)return v}
+    return vs.find(v=>v.lang===lang)||vs.find(v=>v.lang.startsWith(two))||null;
+  }catch(e){return null}
+}
+if('speechSynthesis' in window){try{speechSynthesis.getVoices();speechSynthesis.onvoiceschanged=()=>speechSynthesis.getVoices()}catch(e){}}
+function utter(t,lang,cb){
+  let called=false; const go=()=>{if(!called){called=true;cb&&cb()}};
+  if(!canSpeak()){setTimeout(go,900);return}
+  try{
+    lang=lang||'ja-JP';
+    const u=new SpeechSynthesisUtterance(t); u.lang=lang;
+    const v=pickVoice(lang); if(v) u.voice=v;
+    u.rate=lang.startsWith('ja')?.8:.7; u.pitch=1.1; u.volume=1;
+    u.onend=go; u.onerror=go; speechSynthesis.speak(u);
+  }catch(e){}
+  setTimeout(go,1500+String(t).length*450);   // 読み上げ終了の通知が来ない端末への保険
+}
+let sayTok=0;
+const sayEl=document.getElementById('sayLabel');
+function hideSay(){sayEl.classList.remove('show','again')}
+function stopSay(){sayTok++;hideSay();try{speechSynthesis.cancel()}catch(e){}}
+function sayName(t,lang,done){
+  const tok=++sayTok; try{speechSynthesis.cancel()}catch(e){}
+  sayEl.textContent=t; sayEl.classList.remove('again'); sayEl.classList.add('show');
+  const ok=()=>tok===sayTok;
+  const fin=()=>{if(!ok())return; setTimeout(()=>{if(ok())hideSay()},500); done&&done()};
+  if(!canSpeak()){setTimeout(fin,1600);return}
+  setTimeout(()=>{ if(!ok())return;               // 効果音が終わるのを待つ
+    utter(t,lang,()=>{ if(!ok())return;
+      setTimeout(()=>{ if(!ok())return;             // まねして言う「間」
+        sayEl.classList.remove('again'); void sayEl.offsetWidth; sayEl.classList.add('again');
+        utter(t,lang,fin);
+      },1300);
+    });
+  },700);
 }
 
 /* ===== 線 ===== */
@@ -541,10 +595,11 @@ function updateTop(){
   $('#modeSeg [data-m="abc"]').innerHTML='ABC'+(game==='yoko'?stars(level('abc')):'');
   $('#countBtn').textContent='ペア '+pairCount;
   $('#soundBtn').textContent=soundOn?'🔊':'🔇';
+  $('#voiceBtn').classList.toggle('off',!voiceOn);
   fitBoard();
 }
 function newRound(){
-  won=false; matched=0; links=[]; drag=null; linesG.innerHTML='';
+  stopSay(); won=false; matched=0; links=[]; drag=null; linesG.innerHTML='';
   document.body.classList.remove('won'); $('#title').classList.remove('show'); $('#next').classList.remove('show');
   document.body.classList.toggle('michi',game==='michi');
   document.body.classList.toggle('naka',game==='naka');
@@ -589,6 +644,7 @@ function findTarget(x,y,side){
 function clearHover(){document.querySelectorAll('.card.hover').forEach(c=>c.classList.remove('hover'))}
 
 board.addEventListener('pointerdown',e=>{
+  if(!won) hideSay();
   if(game==='michi'){michiDown(e);return}
   if(game==='naka'){nakaDown(e);return}
   if(game==='oku'){okuDown(e);return}
@@ -621,7 +677,8 @@ function endDrag(e){
     links.push({a,b,g:pg});
     [a,b].forEach(c=>{c.style.setProperty('--c',p.color);c.classList.add('done')});
     chime(matched); burst(dotPos(t)); matched++; setProgress();
-    if(matched===pairCount) win(); else speak(p.say,p.lang);
+    const last=matched===pairCount; if(last) won=true;
+    sayName(p.say,p.lang,last?win:null);
   }else{
     g.remove();
     if(t){boing();[card,t].forEach(c=>{c.classList.remove('nope');void c.offsetWidth;c.classList.add('nope')})}
@@ -707,8 +764,9 @@ function nakaUp(e){
     hub.classList.remove('yay'); void hub.offsetWidth; hub.classList.add('yay');
     chime(matched); burst(dotPos(sur)); matched++;
     dinoEl.style.setProperty('--p',(.06+.3*matched/NK.need).toFixed(3));
-    if(matched===NK.need){NK.els.forEach(el=>{if(!el.classList.contains('done'))el.classList.add('fade')});setTimeout(win,350)}
-    else speak(NK.tgt.say,NK.tgt.lang);
+    const last=matched===NK.need;
+    if(last){won=true;NK.els.forEach(el=>{if(!el.classList.contains('done'))el.classList.add('fade')})}
+    sayName(NK.tgt.say,NK.tgt.lang,last?win:null);
   }else{
     boing();[sur,hub].forEach(c=>{c.classList.remove('nope');void c.offsetWidth;c.classList.add('nope')});
   }
@@ -813,7 +871,8 @@ function okuUp(e){
     setTimeout(()=>{pc.el.classList.remove('snap');pc.el.classList.add('placed')},160);
     tone(700,0,.06,'square',.08); chime(OK.done); burst(lpInv(sl)); OK.done++;
     dinoEl.style.setProperty('--p',(.06+.3*OK.done/OK.n).toFixed(3));
-    if(OK.done===OK.n) setTimeout(win,350); else speak(pc.p.say,pc.p.lang);
+    const last=OK.done===OK.n; if(last) won=true;
+    sayName(pc.p.say,pc.p.lang,last?win:null);
   }else{
     if(sl){boing();sl.el.classList.remove('nope');void sl.el.offsetWidth;sl.el.classList.add('nope')}
     sendHome(pc);
@@ -956,7 +1015,7 @@ function michiMove(e){
 function collectCp(cp){
   cp.got=true; cp.el.classList.remove('need'); cp.el.classList.add('got');
   tone(1046.5,0,.12,'square',.07); tone(1318.5,.1,.25,'sine',.18);
-  burst(lpInv(cp)); speak(cp.item.n);
+  burst(lpInv(cp)); sayName(cp.item.n);
 }
 function endStroke(){R.strokes.push(R.cur);R.cur=null;const last=md.last;md=null;return last}
 function backToStart(delay){
@@ -985,7 +1044,7 @@ function finishRoad(){
     else if(MS.f && MS.h.length>=5 && MS.h.slice(-5).filter(Boolean).length<3){MS.f=false;MS.h=[]}
   }
   save('michi',MS);
-  chime(4); burst(lpInv(R.C[R.N-1])); setTimeout(win,300);
+  stopSay(); chime(4); burst(lpInv(R.C[R.N-1])); setTimeout(win,300);
 }
 const lpInv=p=>{const r=board.getBoundingClientRect();return{x:p.x+r.left,y:p.y+r.top}};
 
@@ -1013,12 +1072,13 @@ function win(){
   if(game==='yoko'&&LEVELS[mode]){clears[mode]++;save(mode+'N',clears[mode])}
   if(game==='naka'){clears.naka++;save('nakaN',clears.naka)}
   if(game==='oku'){clears.oku++;save('okuN',clears.oku)}
-  speak(`できたね！ ${dino.n}だよ！`); fanfare();
+  fanfare(); const wt=sayTok;
+  setTimeout(()=>{if(wt===sayTok&&won)utter(`できたね！ ${dino.n}だよ！`)},1700);
   setTimeout(()=>{document.body.classList.add('won');dinoEl.className='reveal'+(dino.fly?' fly':'');confetti()},450);
   setTimeout(()=>{$('#dinoName').textContent=dino.n;$('#title').classList.add('show');$('#next').classList.add('show')},1300);
 }
 dinoEl.addEventListener('pointerdown',()=>{
-  if(!won) return; ac(); roar();
+  if(!dinoEl.classList.contains('reveal')) return; ac(); roar();
   dinoEl.classList.remove('hop'); void dinoEl.offsetWidth; dinoEl.classList.add('hop');
   setTimeout(()=>dinoEl.classList.remove('hop'),750);
 });
@@ -1049,6 +1109,7 @@ document.querySelectorAll('#modeSeg button').forEach(b=>b.addEventListener('clic
   mode=b.dataset.m; save('mode',mode); ac(); tick(); newRound();
 }));
 $('#countBtn').addEventListener('click',()=>{pairCount=pairCount>=5?2:pairCount+1;save('n',pairCount);newRound()});
+$('#voiceBtn').addEventListener('click',()=>{voiceOn=!voiceOn;save('voice',voiceOn);updateTop();if(!voiceOn){try{speechSynthesis.cancel()}catch(e){}}else{ac();utter('こえ')}});
 $('#soundBtn').addEventListener('click',()=>{soundOn=!soundOn;save('snd',soundOn);updateTop();if(soundOn){ac();tick()}});
 
 window.addEventListener('resize',sizeCards);
