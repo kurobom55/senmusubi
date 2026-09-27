@@ -515,6 +515,19 @@ function pickVoice(lang){
   }catch(e){return null}
 }
 if('speechSynthesis' in window){try{speechSynthesis.getVoices();speechSynthesis.onvoiceschanged=()=>speechSynthesis.getVoices()}catch(e){}}
+/* iPhone/iPad は「タッチした瞬間」にしか読み上げを始められないため、
+   最初のタッチで無音の読み上げを1回流して、以後の遅らせた読み上げを許可させる */
+let speechReady=false;
+function unlockSpeech(){
+  if(speechReady||!('speechSynthesis' in window)) return;
+  try{
+    const u=new SpeechSynthesisUtterance(' '); u.volume=0; u.lang='ja-JP';
+    u.onstart=u.onend=()=>{speechReady=true};
+    speechSynthesis.speak(u);
+    if(speechSynthesis.paused) speechSynthesis.resume();
+  }catch(e){}
+}
+['touchend','pointerup','click'].forEach(ev=>document.addEventListener(ev,unlockSpeech,{capture:true,passive:true}));
 function utter(t,lang,cb){
   let called=false; const go=()=>{if(!called){called=true;cb&&cb()}};
   if(!canSpeak()){setTimeout(go,900);return}
@@ -524,6 +537,7 @@ function utter(t,lang,cb){
     const v=pickVoice(lang); if(v) u.voice=v;
     u.rate=lang.startsWith('ja')?.8:.7; u.pitch=1.1; u.volume=1;
     u.onend=go; u.onerror=go; speechSynthesis.speak(u);
+    if(speechSynthesis.paused) speechSynthesis.resume();
   }catch(e){}
   setTimeout(go,1500+String(t).length*450);   // 読み上げ終了の通知が来ない端末への保険
 }
