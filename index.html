@@ -169,14 +169,22 @@ body.naka #lines{z-index:1}
 #naka .hub.yay{animation:yay .55s ease}
 @keyframes hubp{50%{box-shadow:0 0 0 12px rgba(255,210,63,.6),0 7px 0 rgba(40,60,90,.18)}}
 #naka .card.fade{opacity:.25;transition:opacity .5s}
-.edge{stroke:#b9793f;stroke-width:8;stroke-linejoin:round;stroke-linecap:round;transition:stroke .2s}
-.edge.bad{stroke:#ff3b3b;stroke-width:10}
+.edge{stroke:#ff3b3b;stroke-width:10;stroke-linejoin:round;stroke-linecap:round;opacity:0}
+.edge.bad{opacity:1}
 .edge.shake{animation:jit .07s linear 12}
 @keyframes jit{25%{transform:translate(4px,-4px)}50%{transform:translate(-4px,3px)}75%{transform:translate(3px,4px)}}
 .ring{animation:ringp 1.2s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
 @keyframes ringp{50%{transform:scale(1.3);opacity:.45}}
 .bob{animation:bob 1s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
 #road .go .bob{animation:none}
+.cp{transform-box:fill-box;transform-origin:center}
+.cp .glow{opacity:0;transition:opacity .3s}
+.cp.got .glow{opacity:.55}
+.cp.got .face{animation:cpjump .6s ease}
+.cp.need .face{animation:cpwave .45s ease 3}
+.cp .face{transform-box:fill-box;transform-origin:50% 90%}
+@keyframes cpjump{30%{transform:translateY(-35%) scale(1.15)}60%{transform:translateY(0) scale(1.1,.9)}}
+@keyframes cpwave{25%{transform:rotate(-14deg) scale(1.1)}75%{transform:rotate(14deg) scale(1.1)}}
 @keyframes bob{50%{transform:translateY(-10%)}}
 
 /* できた！ */
@@ -821,6 +829,25 @@ if(!Array.isArray(MS.h)) MS.h=[];
    ★4: ★3と同じ道で、はみ出すとスタートからやり直し
    ★2は10回、★3は20回クリアで。★4は★3で最近10回中8回ノーミスになったら（5回中3回未満に落ちたら★3に戻る） */
 function michiLevel(){ if(MS.c<10) return 1; if(MS.c<20) return 2; return MS.f?4:3 }
+/* 道の上のなかま: ★1は1ぴき、★2は2ひき（通るとよろこぶ・通らなくてもクリアOK）
+   ★3・★4は3びき（ぜんぶの上を通らないとゴールできない） */
+const CP_COUNT={1:1,2:2,3:3,4:3};
+/* 道の上のなかま（目・鼻・口のあるオリジナルキャラ） */
+const cpFace=(y=0)=>`<g transform="translate(0 ${y})">
+  <circle cx="38" cy="47" r="9" fill="#fff"/><circle cx="62" cy="47" r="9" fill="#fff"/>
+  <circle cx="40" cy="49" r="5.5" fill="#2b2b3d"/><circle cx="64" cy="49" r="5.5" fill="#2b2b3d"/>
+  <circle cx="42" cy="46" r="2" fill="#fff"/><circle cx="66" cy="46" r="2" fill="#fff"/>
+  <ellipse cx="51" cy="58" rx="4" ry="3" fill="#5b3a2e"/>
+  <path d="M39 63Q51 77 63 63Z" fill="#8a2f3b"/><ellipse cx="51" cy="69" rx="5" ry="3" fill="#ff8fa3"/>
+  <ellipse cx="28" cy="60" rx="5" ry="3.2" fill="#ff8fa3" opacity=".6"/><ellipse cx="74" cy="60" rx="5" ry="3.2" fill="#ff8fa3" opacity=".6"/></g>`;
+const CP_CHARS=[
+ {n:'おひさま',svg:`<svg viewBox="0 0 100 100"><g fill="#ff9f1c">${[0,45,90,135,180,225,270,315].map(a=>`<polygon points="50,4 57,20 43,20" transform="rotate(${a} 50 52)"/>`).join('')}</g><circle cx="50" cy="52" r="32" fill="#ffc94a"/>${cpFace(2)}</svg>`},
+ {n:'うさちゃん',svg:`<svg viewBox="0 0 100 100"><ellipse cx="35" cy="20" rx="9" ry="20" fill="#ffc2d4"/><ellipse cx="65" cy="20" rx="9" ry="20" fill="#ffc2d4"/><ellipse cx="35" cy="21" rx="4" ry="13" fill="#ff8fab"/><ellipse cx="65" cy="21" rx="4" ry="13" fill="#ff8fab"/><circle cx="50" cy="57" r="33" fill="#ffd6e2"/>${cpFace(4)}</svg>`},
+ {n:'はっぱちゃん',svg:`<svg viewBox="0 0 100 100"><path d="M50 26C44 12 30 8 22 12c4 12 16 18 28 14z" fill="#4caf50"/><path d="M50 26C56 10 72 6 80 10c-4 13-18 19-30 16z" fill="#69c46d"/><circle cx="50" cy="58" r="33" fill="#9be7a6"/>${cpFace(5)}</svg>`},
+ {n:'しずくちゃん',svg:`<svg viewBox="0 0 100 100"><path d="M50 6C62 26 84 42 84 62a34 34 0 0 1-68 0C16 42 38 26 50 6z" fill="#74c0fc"/><path d="M30 52c0-8 5-15 10-20" stroke="#fff" stroke-width="5" stroke-linecap="round" fill="none" opacity=".6"/>${cpFace(8)}</svg>`},
+ {n:'くもちゃん',svg:`<svg viewBox="0 0 100 100"><g fill="#ffffff" stroke="#b8c4d6" stroke-width="3"><circle cx="30" cy="56" r="20"/><circle cx="70" cy="56" r="20"/><circle cx="50" cy="40" r="24"/><rect x="24" y="52" width="52" height="28" rx="14"/></g><g fill="#fff"><circle cx="30" cy="56" r="17"/><circle cx="70" cy="56" r="17"/><circle cx="50" cy="40" r="21"/><rect x="26" y="52" width="48" height="25" rx="12"/></g>${cpFace(4)}</svg>`},
+ {n:'くまちゃん',svg:`<svg viewBox="0 0 100 100"><circle cx="24" cy="30" r="12" fill="#c8895a"/><circle cx="76" cy="30" r="12" fill="#c8895a"/><circle cx="24" cy="30" r="6" fill="#e8b48a"/><circle cx="76" cy="30" r="6" fill="#e8b48a"/><circle cx="50" cy="55" r="34" fill="#d99a6c"/><ellipse cx="51" cy="64" rx="17" ry="13" fill="#f3d2b3"/>${cpFace(3)}</svg>`}
+];
 const MPAR={1:{hw:.17,amp:.10,wav:1},2:{hw:.13,amp:.20,wav:1.5},3:{hw:.10,amp:.26,wav:2.5},4:{hw:.10,amp:.26,wav:2.5}};
 function svgEl(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e}
 const toD=pts=>pts.map((p,i)=>(i?'L':'M')+p.x.toFixed(1)+' '+p.y.toFixed(1)).join('');
@@ -839,7 +866,10 @@ function setupRoad(){
     C.push(vert?{x:v,y:u}:{x:u,y:v});
   }
   const Nn=C.map((p,i)=>{const a=C[Math.max(0,i-1)],b=C[Math.min(N-1,i+1)],tx=b.x-a.x,ty=b.y-a.y,l=Math.hypot(tx,ty)||1;return{x:ty/l,y:-tx/l}});
-  R={W,H,hw,C,Nn,N,lv,strokes:[],cur:null,resume:{...C[0]},far:0,miss:0,done:false};
+  R={W,H,hw,C,Nn,N,lv,strokes:[],cur:null,resume:{...C[0]},far:0,miss:0,done:false,hintT:0};
+  const k=CP_COUNT[lv], ic=shuffle(CP_CHARS);
+  R.need=lv>=3;
+  R.cps=Array.from({length:k},(_,j)=>{const i=Math.round((N-1)*(j+1)/(k+1));return{i,x:C[i].x,y:C[i].y,item:ic[j],got:false}});
   drawRoad(); idle();
 }
 function edgePts(side,zig,center){
@@ -863,6 +893,14 @@ function drawRoad(){
   svgEl('circle',{cx:st.x,cy:st.y,r:hw*.8,fill:'#8ac926',opacity:.35},g);
   const fg=svgEl('g',{transform:`translate(${en.x} ${en.y})`},g);
   fg.innerHTML=`<circle r="${hw*.85}" fill="#fff" opacity=".75"/><line x1="${-s*.12}" y1="${s*.4}" x2="${-s*.12}" y2="${-s*.5}" stroke="#6b4226" stroke-width="${s*.07}" stroke-linecap="round"/><path d="M${-s*.12} ${-s*.5}L${s*.42} ${-s*.32}L${-s*.12} ${-s*.12}Z" fill="#ff595e"/>`;
+  const cs=hw*1.3;
+  R.cps.forEach(cp=>{
+    const g2=svgEl('g',{class:'cp',transform:`translate(${cp.x} ${cp.y})`},roadSvg);
+    svgEl('circle',{r:cs*.62,fill:'#ffd23f',class:'glow'},g2);
+    const f=svgEl('g',{class:'face'},g2);
+    f.innerHTML=cp.item.svg.replace('<svg viewBox="0 0 100 100">',`<svg x="${-cs/2}" y="${-cs/2}" width="${cs}" height="${cs}" viewBox="0 0 100 100">`);
+    cp.el=g2;
+  });
   R.trace=svgEl('path',{fill:'none',stroke:'#ff595e','stroke-width':Math.max(10,hw*.34),'stroke-linecap':'round','stroke-linejoin':'round'},roadSvg);
   R.ring=svgEl('circle',{r:hw*.72,fill:'none',stroke:'#ffd23f','stroke-width':7,class:'ring'},roadSvg);
   R.ps=hw*1.35; R.pen=svgEl('g',{},roadSvg);
@@ -902,15 +940,27 @@ function michiMove(e){
     const q={x:a.x+(p.x-a.x)*k/steps,y:a.y+(p.y-a.y)*k/steps}, n=nearest(q);
     if(n.d>R.hw){stray(n);return}
     md.last=q; R.far=Math.max(R.far,n.i);
+    R.cps.forEach(cp=>{if(!cp.got&&Math.hypot(q.x-cp.x,q.y-cp.y)<R.hw*.6)collectCp(cp)});
     const en=R.C[R.N-1];
-    if(n.i>=R.N-1.5 && Math.hypot(q.x-en.x,q.y-en.y)<R.hw*.9){R.cur.push(q);finishRoad();return}
+    if(n.i>=R.N-1.5 && Math.hypot(q.x-en.x,q.y-en.y)<R.hw*.9){
+      const miss=R.need?R.cps.filter(cp=>!cp.got):[];
+      if(!miss.length){R.cur.push(q);finishRoad();return}
+      const now=Date.now();
+      if(now-R.hintT>1500){R.hintT=now;tone(520,0,.18,'sine',.15);tone(440,.2,.25,'sine',.15);
+        miss.forEach(cp=>{cp.el.classList.remove('need');void cp.el.getBBox();cp.el.classList.add('need')})}
+    }
   }
   R.cur.push(md.last); drawTrace(); placePen(md.last);
   dinoEl.style.setProperty('--p',(.06+.3*R.far/(R.N-1)).toFixed(3));
 }
+function collectCp(cp){
+  cp.got=true; cp.el.classList.remove('need'); cp.el.classList.add('got');
+  tone(1046.5,0,.12,'square',.07); tone(1318.5,.1,.25,'sine',.18);
+  burst(lpInv(cp)); speak(cp.item.n);
+}
 function endStroke(){R.strokes.push(R.cur);R.cur=null;const last=md.last;md=null;return last}
 function backToStart(delay){
-  setTimeout(()=>{if(!R||R.done)return;R.strokes=[];R.far=0;R.resume={...R.C[0]};drawTrace();idle();dinoEl.style.setProperty('--p','.06')},delay);
+  setTimeout(()=>{if(!R||R.done)return;R.cps.forEach(cp=>{cp.got=false;cp.el.classList.remove('got','need')});R.strokes=[];R.far=0;R.resume={...R.C[0]};drawTrace();idle();dinoEl.style.setProperty('--p','.06')},delay);
 }
 function stray(n){
   const last=endStroke(); R.miss++; buzz(); drawTrace();
