@@ -187,6 +187,34 @@ body.naka #lines{z-index:1}
 @keyframes cpwave{25%{transform:rotate(-14deg) scale(1.1)}75%{transform:rotate(14deg) scale(1.1)}}
 @keyframes bob{50%{transform:translateY(-10%)}}
 
+@media (max-width:480px){
+  #top{gap:4px;max-width:calc(100vw - 8px)}
+  .seg{padding:3px;gap:0}
+  .seg button,#top > button{font-size:13px;padding:5px 7px}
+  .seg sup{font-size:8px}
+}
+/* しゃしん */
+.ph{width:100%;height:100%;object-fit:cover;border-radius:18%;display:block;pointer-events:none;-webkit-user-drag:none}
+#oku .piece .ph,#oku .ghost .ph{border-radius:50%}
+#oku .piece .art{inset:9%}
+#phMgr{position:fixed;inset:0;z-index:30;background:rgba(20,30,50,.55);display:grid;place-items:center;touch-action:auto}
+#phMgr[hidden]{display:none}
+#phMgr .box{
+  background:#fff;border-radius:24px;padding:20px;width:min(600px,92vw);max-height:86vh;overflow:auto;
+  -webkit-overflow-scrolling:touch;touch-action:pan-y;-webkit-user-select:text;user-select:text;
+}
+#phMgr h2{margin:0 0 6px;font-size:24px}
+#phMgr .note{margin:0 0 14px;font-size:14px;font-weight:700;line-height:1.6;color:#5b5b78}
+#phList{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px;margin-bottom:16px}
+#phList:empty::before{content:"まだ しゃしんが ありません";grid-column:1/-1;color:#8a8aa3;font-size:16px;text-align:center;padding:24px 0}
+.phi{position:relative;background:#f4f6fb;border-radius:18px;padding:8px}
+.phi img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:14px;display:block}
+.phi input{width:100%;margin-top:6px;font:inherit;font-size:16px;border:2px solid #dde3ef;border-radius:10px;padding:6px 8px;text-align:center}
+.phi .del{position:absolute;top:2px;right:2px;width:34px;height:34px;border-radius:50%;border:none;background:#ff595e;color:#fff;font:inherit;font-size:18px;box-shadow:0 2px 0 rgba(0,0,0,.2)}
+#phMgr .acts{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.pbtn{font:inherit;font-size:18px;border:none;border-radius:999px;padding:12px 22px;background:#e9eef7;color:var(--ink);cursor:pointer}
+.pbtn.add{background:#ff924c;color:#fff;box-shadow:0 4px 0 #d8692a}
+
 /* なまえ表示 */
 #sayLabel{
   position:fixed; z-index:6; left:50%; top:50%; pointer-events:none;
@@ -290,6 +318,7 @@ body.naka #lines{z-index:1}
     <button type="button" data-m="e">え</button>
     <button type="button" data-m="kazu">123</button>
     <button type="button" data-m="abc">ABC</button>
+    <button type="button" data-m="photo">しゃしん</button>
   </div>
   <button id="countBtn" type="button">ペア 3</button>
   <button id="voiceBtn" type="button">こえ</button>
@@ -297,6 +326,17 @@ body.naka #lines{z-index:1}
 </div>
 
 <div id="sayLabel" aria-live="polite"></div>
+<div id="phMgr" hidden>
+  <div class="box">
+    <h2>しゃしん</h2>
+    <p class="note">写真はこの端末の中だけに保存され、どこにも送信されません。名前を入れると、結んだときに読み上げます。</p>
+    <div id="phList"></div>
+    <div class="acts">
+      <label class="pbtn add">＋ しゃしんをいれる<input type="file" accept="image/*" multiple id="phInput" hidden></label>
+      <button type="button" class="pbtn" id="phClose">とじる</button>
+    </div>
+  </div>
+</div>
 <div id="title"><h1>できた！</h1><br><p id="dinoName"></p></div>
 <button id="next" type="button">つぎ ▶</button>
 
@@ -442,7 +482,20 @@ function countSvg(v,item){
 const YOMI=['いち','に','さん','よん','ご','ろく'];
 const COUNT_ICONS=['apple','star','chick','berry','fish','flower'];
 
+/* ===== しゃしん（家族の写真など） =====
+   端末の中（localStorage）だけに保存。320pxの正方形に縮めてから保存するので軽い */
+let PHOTOS=[];
+try{PHOTOS=JSON.parse(localStorage.getItem('senmusubi_photos')||'[]')||[]}catch(e){PHOTOS=[]}
+function savePhotos(){
+  try{localStorage.setItem('senmusubi_photos',JSON.stringify(PHOTOS));return true}
+  catch(e){alert('ほぞんできませんでした。写真を少しへらしてください。');return false}
+}
+const phItem=p=>({k:'ph'+p.id,n:p.name||'',svg:`<img class="ph" src="${p.src}" alt="">`});
+// 写真を先に（シャッフルして）、足りない分はふつうの絵でうめる
+const photoPool=()=>shuffle(PHOTOS).map(phItem).concat(shuffle(ITEMS));
+
 const MODES={
+  photo:n=>photoPool().slice(0,n).map(it=>({k:it.k,L:it.svg,R:it.svg,say:it.n})),
   e:   n=>shuffle(ITEMS).slice(0,n).map(it=>({k:it.k,L:it.svg,R:it.svg,say:it.n})),
   kazu:n=>{
     const lv=level('kazu'), cl=shuffle(GLYPH_COLORS), cr=lv===1?cl:shuffle(GLYPH_COLORS), ic=shuffle(COUNT_ICONS);
@@ -546,6 +599,7 @@ const sayEl=document.getElementById('sayLabel');
 function hideSay(){sayEl.classList.remove('show','again')}
 function stopSay(){sayTok++;hideSay();try{speechSynthesis.cancel()}catch(e){}}
 function sayName(t,lang,done){
+  if(!t){const tk=++sayTok;hideSay();setTimeout(()=>{if(tk===sayTok&&done)done()},900);return}
   const tok=++sayTok; try{speechSynthesis.cancel()}catch(e){}
   sayEl.textContent=t; sayEl.classList.remove('again'); sayEl.classList.add('show');
   const ok=()=>tok===sayTok;
@@ -712,10 +766,11 @@ let NK=null;
 function nakaRound(){
   const lv=nakaLevel(), nOther=lv===1?0:lv===2?1:3, NM=3;
   let pool;
-  if(mode==='e') pool=ITEMS.map(it=>({k:it.k,say:it.n,art:()=>it.svg}));
+  if(mode==='photo') pool=photoPool().map(it=>({k:it.k,say:it.n,art:()=>it.svg}));
+  else if(mode==='e') pool=ITEMS.map(it=>({k:it.k,say:it.n,art:()=>it.svg}));
   else if(mode==='kazu') pool=[1,2,3,4,5,6].map(v=>({k:'n'+v,say:YOMI[v-1],art:c=>glyph(v,c)}));
   else pool='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(ch=>({k:ch,say:ch,lang:'en-US',art:c=>glyph(ch,c)}));
-  const pick=shuffle(pool), tgt=pick[0], others=pick.slice(1,1+nOther);
+  const pick=mode==='photo'?pool:shuffle(pool), tgt=pick[0], others=pick.slice(1,1+nOther);
   const c0=GLYPH_COLORS[Math.random()*GLYPH_COLORS.length|0], rest=shuffle(GLYPH_COLORS.filter(c=>c!==c0));
   const anyC=()=>GLYPH_COLORS[Math.random()*GLYPH_COLORS.length|0];
   const items=[];
@@ -797,11 +852,12 @@ let OK=null, od=null;
 function okuRound(){
   const lv=okuLevel(), n=lv===1?3:lv===2?4:6;
   let pool;
-  if(mode==='e') pool=ITEMS.map(it=>({k:it.k,say:it.n,svg:it.svg}));
+  if(mode==='photo') pool=photoPool().map(it=>({k:it.k,say:it.n,svg:it.svg}));
+  else if(mode==='e') pool=ITEMS.map(it=>({k:it.k,say:it.n,svg:it.svg}));
   else if(mode==='kazu') pool=[1,2,3,4,5,6].map(v=>({k:'n'+v,say:YOMI[v-1],t:v}));
   else pool='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(ch=>({k:ch,say:ch,lang:'en-US',t:ch}));
-  const picks=shuffle(pool).slice(0,n), cols=shuffle(TOKEN_COLORS);
-  picks.forEach((p,i)=>p.c=mode==='e'?'#ffffff':cols[i%cols.length]);
+  const picks=(mode==='photo'?pool:shuffle(pool)).slice(0,n), cols=shuffle(TOKEN_COLORS);
+  picks.forEach((p,i)=>p.c=(mode==='e'||mode==='photo')?'#ffffff':cols[i%cols.length]);
   const face=p=>p.svg?`<div class="art">${p.svg}</div>`:`<b>${p.t}</b>`;
   OK={n,lv,sheet:document.createElement('div'),tray:document.createElement('div'),slots:[],pieces:[],done:0};
   OK.sheet.className='sheet'; OK.tray.className='tray'; okuEl.append(OK.sheet,OK.tray);
@@ -1098,6 +1154,53 @@ dinoEl.addEventListener('pointerdown',()=>{
 });
 $('#next').addEventListener('click',()=>{ac();tick();nextDino();newRound()});
 
+/* ===== しゃしん管理画面 ===== */
+const phMgr=$('#phMgr'), phList=$('#phList');
+function renderPhotos(){
+  phList.innerHTML='';
+  PHOTOS.forEach(p=>{
+    const d=document.createElement('div'); d.className='phi';
+    d.innerHTML=`<img src="${p.src}" alt=""><input type="text" placeholder="なまえ" maxlength="12"><button type="button" class="del" aria-label="けす">×</button>`;
+    const inp=d.querySelector('input'); inp.value=p.name||'';
+    inp.addEventListener('change',()=>{p.name=inp.value.trim();savePhotos()});
+    d.querySelector('.del').addEventListener('click',()=>{
+      if(!confirm('このしゃしんをけしますか？')) return;
+      PHOTOS=PHOTOS.filter(q=>q!==p); savePhotos(); renderPhotos();
+    });
+    phList.appendChild(d);
+  });
+}
+function openPhotos(){renderPhotos();phMgr.hidden=false}
+function shrinkPhoto(file){
+  return new Promise((res,rej)=>{
+    const url=URL.createObjectURL(file), img=new Image();
+    img.onload=()=>{
+      const S=320, c=document.createElement('canvas'); c.width=c.height=S;
+      const m=Math.min(img.naturalWidth,img.naturalHeight);
+      c.getContext('2d').drawImage(img,(img.naturalWidth-m)/2,(img.naturalHeight-m)/2,m,m,0,0,S,S);
+      URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg',.8));
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);rej()};
+    img.src=url;
+  });
+}
+$('#phInput').addEventListener('change',async e=>{
+  const files=[...e.target.files]; e.target.value='';
+  for(const f of files){
+    try{
+      const src=await shrinkPhoto(f);
+      PHOTOS.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),name:'',src});
+      if(!savePhotos()){PHOTOS.pop();break}
+    }catch(err){}
+  }
+  renderPhotos();
+  const ins=phList.querySelectorAll('input'); if(ins.length) ins[ins.length-1].focus();
+});
+$('#phClose').addEventListener('click',()=>{
+  document.activeElement&&document.activeElement.blur();
+  phMgr.hidden=true; if(mode==='photo') newRound();
+});
+
 /* ===== 保護者ボタン ===== */
 // 選択中のボタンをもう一度押すと、★を手動で切り替え（★1→★2→…→★1）
 document.querySelectorAll('#gameSeg button').forEach(b=>b.addEventListener('click',()=>{
@@ -1116,6 +1219,9 @@ document.querySelectorAll('#gameSeg button').forEach(b=>b.addEventListener('clic
   game=b.dataset.g; save('game',game); ac(); tick(); newRound();
 }));
 document.querySelectorAll('#modeSeg button').forEach(b=>b.addEventListener('click',()=>{
+  if(b.dataset.m==='photo'&&(mode==='photo'||!PHOTOS.length)){   // しゃしん選択中にもう一度押す／写真がまだない → 写真の管理画面
+    mode='photo'; save('mode',mode); updateTop(); openPhotos(); return;
+  }
   if(b.dataset.m===mode){
     if(game==='yoko'&&LEVELS[mode]){const t=LEVELS[mode],lv=level(mode);clears[mode]=lv>=t.length?0:t[lv];save(mode+'N',clears[mode]);ac();tick();newRound()}
     return;
