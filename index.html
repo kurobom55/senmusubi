@@ -136,6 +136,31 @@ body.michi .col,body.michi #countBtn,body.michi #modeSeg{display:none}
 #naka{position:absolute;inset:0;display:none}
 body.naka #naka{display:block}
 body.naka .col,body.naka #countBtn{display:none}
+
+/* おく */
+#oku{position:absolute;inset:0;display:none}
+body.oku #oku{display:block}
+body.oku .col,body.oku #countBtn{display:none}
+#oku .sheet,#oku .tray{position:absolute;border-radius:26px}
+#oku .sheet{background:#fffaf0;box-shadow:0 8px 0 rgba(40,60,90,.18);border:5px solid #fff}
+#oku .tray{background:rgba(255,255,255,.45);border:4px dashed rgba(255,255,255,.9)}
+#oku .slot{position:absolute;border:2px solid #e3d6bd}
+#oku .ring{position:absolute;inset:9%;border-radius:50%;border:5px dashed var(--rc,#c9b99a);transition:transform .15s}
+#oku .ghost{position:absolute;inset:16%;opacity:var(--go,.45);display:grid;place-items:center;pointer-events:none}
+#oku .ghost svg{width:100%;height:100%}
+#oku .ghost b,#oku .piece b{font-size:var(--fs);line-height:1}
+#oku .ghost b{color:#9a8f7c}
+#oku .slot.hover .ring{transform:scale(1.12);border-color:#ffd23f;border-style:solid}
+#oku .slot.nope{animation:shake .42s ease}
+#oku .piece{
+  position:absolute;border-radius:50%;background:var(--pc,#fff);display:grid;place-items:center;
+  box-shadow:inset 0 -6px 0 rgba(0,0,0,.12),0 6px 0 rgba(40,60,90,.2);border:4px solid #fff;z-index:2;color:#2e2e4a;
+}
+#oku .piece .art{inset:14%}
+#oku .piece.drag{z-index:10;transform:scale(1.12);box-shadow:inset 0 -6px 0 rgba(0,0,0,.12),0 16px 18px rgba(40,60,90,.3)}
+#oku .piece.back{transition:left .35s cubic-bezier(.3,1.4,.5,1),top .35s cubic-bezier(.3,1.4,.5,1)}
+#oku .piece.snap{transition:left .15s ease,top .15s ease}
+#oku .piece.placed{z-index:1;animation:yay .55s ease}
 body.naka #lines{z-index:1}
 #naka .card{position:absolute}
 #naka .hub{animation:hubp 2s ease-in-out infinite}
@@ -230,7 +255,7 @@ body.naka #lines{z-index:1}
 </div>
 
 <div id="dino" aria-hidden="true"></div>
-<div id="board"><div class="col left" id="leftCol"></div><div class="col right" id="rightCol"></div><svg id="road"></svg><div id="naka"></div></div>
+<div id="board"><div class="col left" id="leftCol"></div><div class="col right" id="rightCol"></div><svg id="road"></svg><div id="naka"></div><div id="oku"></div></div>
 <svg id="lines"><g id="linesG"></g></svg>
 
 <div id="top">
@@ -238,6 +263,7 @@ body.naka #lines{z-index:1}
     <button type="button" data-g="yoko">よこ</button>
     <button type="button" data-g="naka">まんなか</button>
     <button type="button" data-g="michi">みち</button>
+    <button type="button" data-g="oku">おく</button>
   </div>
   <div class="seg" id="modeSeg">
     <button type="button" data-m="e">え</button>
@@ -419,9 +445,9 @@ const board=$('#board'), leftCol=$('#leftCol'), rightCol=$('#rightCol'), linesG=
 function load(k,d){try{const v=localStorage.getItem('senmusubi_'+k);return v==null?d:JSON.parse(v)}catch(e){return d}}
 function save(k,v){try{localStorage.setItem('senmusubi_'+k,JSON.stringify(v))}catch(e){}}
 let pairCount=load('n',3), soundOn=load('snd',true), mode=load('mode','e'), game=load('game',null),
-    clears={kazu:load('kazuN',0),abc:load('abcN',0),naka:load('nakaN',0)};
+    clears={kazu:load('kazuN',0),abc:load('abcN',0),naka:load('nakaN',0),oku:load('okuN',0)};
 if(mode==='michi'){game=game||'michi';mode='e'}
-if(!['yoko','naka','michi'].includes(game)) game='yoko';
+if(!['yoko','naka','michi','oku'].includes(game)) game='yoko';
 if(!MODES[mode]) mode='e';
 const stars=n=>'<sup>'+'★'.repeat(n)+'</sup>';
 function fitBoard(){board.style.top=($('#top').getBoundingClientRect().bottom+8)+'px'}
@@ -491,6 +517,7 @@ function sizeCards(){
   fitBoard();
   const h=board.clientHeight, w=board.clientWidth;
   if(game==='naka'){nakaLayout();requestAnimationFrame(redraw);return}
+  if(game==='oku'){okuLayout();return}
   if(game==='michi'){ if(R && !md && !R.done && (Math.abs(w-R.W)>40||Math.abs(h-R.H)>40)) setupRoad(); return; }
   const s=Math.max(60,Math.min(h/pairCount-20,w*.27,190));
   document.documentElement.style.setProperty('--cardsize',s+'px');
@@ -501,6 +528,7 @@ function updateTop(){
   document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.m===mode));
   $('#gameSeg [data-g="naka"]').innerHTML='まんなか'+stars(nakaLevel());
   $('#gameSeg [data-g="michi"]').innerHTML='みち'+stars(michiLevel());
+  $('#gameSeg [data-g="oku"]').innerHTML='おく'+stars(okuLevel());
   $('#modeSeg [data-m="kazu"]').innerHTML='123'+(game==='yoko'?stars(level('kazu')):'');
   $('#modeSeg [data-m="abc"]').innerHTML='ABC'+(game==='yoko'?stars(level('abc')):'');
   $('#countBtn').textContent='ペア '+pairCount;
@@ -512,7 +540,13 @@ function newRound(){
   document.body.classList.remove('won'); $('#title').classList.remove('show'); $('#next').classList.remove('show');
   document.body.classList.toggle('michi',game==='michi');
   document.body.classList.toggle('naka',game==='naka');
-  nakaEl.innerHTML=''; NK=null;
+  document.body.classList.toggle('oku',game==='oku');
+  nakaEl.innerHTML=''; NK=null; okuEl.innerHTML=''; OK=null; od=null;
+  if(game==='oku'){
+    leftCol.innerHTML=''; rightCol.innerHTML=''; roadSvg.innerHTML=''; R=null;
+    dinoEl.className='hint'; dinoEl.innerHTML=dino.svg; dinoEl.style.setProperty('--p','.06');
+    updateTop(); okuRound(); return;
+  }
   if(game==='naka'){
     leftCol.innerHTML=''; rightCol.innerHTML=''; roadSvg.innerHTML=''; R=null;
     dinoEl.className='hint'; dinoEl.innerHTML=dino.svg;
@@ -549,6 +583,7 @@ function clearHover(){document.querySelectorAll('.card.hover').forEach(c=>c.clas
 board.addEventListener('pointerdown',e=>{
   if(game==='michi'){michiDown(e);return}
   if(game==='naka'){nakaDown(e);return}
+  if(game==='oku'){okuDown(e);return}
   const card=e.target.closest('.card');
   if(!card||card.classList.contains('done')||drag||won) return;
   e.preventDefault(); ac(); tick();
@@ -558,6 +593,7 @@ board.addEventListener('pointerdown',e=>{
 window.addEventListener('pointermove',e=>{
   if(md){michiMove(e);return}
   if(drag&&drag.naka){nakaMove(e);return}
+  if(od){okuMove(e);return}
   if(!drag||e.pointerId!==drag.id) return;
   setLine(drag.g,drag.p,{x:e.clientX,y:e.clientY});
   const t=findTarget(e.clientX,e.clientY,drag.card.dataset.side);
@@ -566,6 +602,7 @@ window.addEventListener('pointermove',e=>{
 function endDrag(e){
   if(md){michiUp(e);return}
   if(drag&&drag.naka){nakaUp(e);return}
+  if(od){okuUp(e);return}
   if(!drag||e.pointerId!==drag.id) return;
   const {card,g}=drag; drag=null; clearHover(); card.classList.remove('active');
   const t=e.type==='pointerup'?findTarget(e.clientX,e.clientY,card.dataset.side):null;
@@ -666,6 +703,112 @@ function nakaUp(e){
     else speak(NK.tgt.say,NK.tgt.lang);
   }else{
     boing();[sur,hub].forEach(c=>{c.classList.remove('nope');void c.offsetWidth;c.classList.add('nope')});
+  }
+}
+
+/* ===== おく ===== */
+const okuEl=$('#oku');
+/* ★1: コマ3つ・シートの絵がはっきり＋わくの色がコマと同じ / ★2: コマ4つ・絵がうすく、わくは同じ色 / ★3: コマ6つ・絵がうすく、わくの色のヒントなし
+   数字は「その★になるのに必要なクリア回数」 */
+const OKU_LV=[0,10,20];
+function okuLevel(){let lv=1;OKU_LV.forEach((v,i)=>{if(clears.oku>=v)lv=i+1});return lv}
+const TOKEN_COLORS=['#ff6b6b','#ffd23f','#ffffff','#74c0fc','#8ce99a','#ffa8d9'];
+let OK=null, od=null;
+function okuRound(){
+  const lv=okuLevel(), n=lv===1?3:lv===2?4:6;
+  let pool;
+  if(mode==='e') pool=ITEMS.map(it=>({k:it.k,say:it.n,svg:it.svg}));
+  else if(mode==='kazu') pool=[1,2,3,4,5,6].map(v=>({k:'n'+v,say:YOMI[v-1],t:v}));
+  else pool='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(ch=>({k:ch,say:ch,lang:'en-US',t:ch}));
+  const picks=shuffle(pool).slice(0,n), cols=shuffle(TOKEN_COLORS);
+  picks.forEach((p,i)=>p.c=mode==='e'?'#ffffff':cols[i%cols.length]);
+  const face=p=>p.svg?`<div class="art">${p.svg}</div>`:`<b>${p.t}</b>`;
+  OK={n,lv,sheet:document.createElement('div'),tray:document.createElement('div'),slots:[],pieces:[],done:0};
+  OK.sheet.className='sheet'; OK.tray.className='tray'; okuEl.append(OK.sheet,OK.tray);
+  shuffle(picks).forEach(p=>{
+    const el=document.createElement('div'); el.className='slot';
+    el.style.setProperty('--go',lv===1?.6:.3);
+    if(lv<3) el.style.setProperty('--rc',p.c==='#ffffff'?'#c9b99a':p.c);
+    el.innerHTML=`<div class="ring"></div><div class="ghost">${face(p)}</div>`;
+    okuEl.appendChild(el); OK.slots.push({el,p,filled:false});
+  });
+  shuffle(picks).forEach(p=>{
+    const el=document.createElement('div'); el.className='piece'; el.style.setProperty('--pc',p.c);
+    el.setAttribute('aria-label',p.say); el.innerHTML=face(p);
+    okuEl.appendChild(el); OK.pieces.push({el,p,slot:null});
+  });
+  okuLayout();
+}
+function gridFit(n,w,h){
+  let best={cell:0,cols:1,rows:n};
+  for(let c=1;c<=n;c++){const r=Math.ceil(n/c), cell=Math.min(w/c,h/r); if(cell>best.cell) best={cell,cols:c,rows:r}}
+  return best;
+}
+function okuLayout(){
+  if(!OK) return;
+  const W=board.clientWidth, H=board.clientHeight, n=OK.n, gap=16, pad=14;
+  const vert=H>W*1.1;
+  const sA=vert?{x:0,y:0,w:W,h:H*.6-gap/2}:{x:0,y:0,w:W*.6-gap/2,h:H};
+  const tA=vert?{x:0,y:H*.6+gap/2,w:W,h:H*.4-gap/2}:{x:W*.6+gap/2,y:0,w:W*.4-gap/2,h:H};
+  const g=gridFit(n,sA.w-pad*2,sA.h-pad*2), tg=gridFit(n,tA.w-pad*2,tA.h-pad*2);
+  const cell=Math.min(g.cell,190), s=Math.min(cell*.82,tg.cell*.86,160);
+  OK.s=s;
+  const gw=cell*g.cols, gh=cell*g.rows, gx=sA.x+(sA.w-gw)/2, gy=sA.y+(sA.h-gh)/2;
+  Object.assign(OK.sheet.style,{left:gx-pad+'px',top:gy-pad+'px',width:gw+pad*2+'px',height:gh+pad*2+'px'});
+  Object.assign(OK.tray.style,{left:tA.x+'px',top:tA.y+'px',width:tA.w+'px',height:tA.h+'px'});
+  const fs=s*.52+'px';
+  OK.slots.forEach((sl,i)=>{
+    const r=Math.floor(i/g.cols), inRow=Math.min(g.cols,n-r*g.cols), c=i-r*g.cols, off=(g.cols-inRow)*cell/2;
+    sl.x=gx+off+c*cell+cell/2; sl.y=gy+r*cell+cell/2;
+    Object.assign(sl.el.style,{left:sl.x-cell/2+'px',top:sl.y-cell/2+'px',width:cell+'px',height:cell+'px'});
+    sl.el.style.setProperty('--fs',fs);
+  });
+  const tc=tg.cell, tw=tc*tg.cols, th=tc*tg.rows, tx=tA.x+(tA.w-tw)/2, ty=tA.y+(tA.h-th)/2;
+  OK.pieces.forEach((pc,i)=>{
+    const r=Math.floor(i/tg.cols), inRow=Math.min(tg.cols,n-r*tg.cols), c=i-r*tg.cols, off=(tg.cols-inRow)*tc/2;
+    pc.home={x:tx+off+c*tc+tc/2,y:ty+r*tc+tc/2};
+    Object.assign(pc.el.style,{width:s+'px',height:s+'px'}); pc.el.style.setProperty('--fs',fs);
+    if(od&&od.pc===pc) return;
+    const at=pc.slot||pc.home; setC(pc,at.x,at.y);
+  });
+}
+function setC(pc,x,y){pc.el.style.left=(x-OK.s/2)+'px';pc.el.style.top=(y-OK.s/2)+'px';pc.at={x,y}}
+function okuSlotAt(p){
+  let best=null,bd=Infinity;
+  OK.slots.forEach(sl=>{if(sl.filled)return;const d=Math.hypot(p.x-sl.x,p.y-sl.y);if(d<OK.s*.75&&d<bd){best=sl;bd=d}});
+  return best;
+}
+function okuDown(e){
+  const el=e.target.closest('#oku .piece'); if(!OK||!el||won||od) return;
+  const pc=OK.pieces.find(q=>q.el===el); if(!pc||pc.slot) return;
+  e.preventDefault(); ac(); tick();
+  const p=lp(e); od={pc,id:e.pointerId,off:{x:p.x-pc.at.x,y:p.y-pc.at.y}};
+  el.classList.remove('back','snap'); el.classList.add('drag');
+}
+function okuMove(e){
+  if(e.pointerId!==od.id) return;
+  const p=lp(e), c={x:p.x-od.off.x,y:p.y-od.off.y}; setC(od.pc,c.x,c.y);
+  OK.slots.forEach(sl=>sl.el.classList.remove('hover'));
+  const sl=okuSlotAt(c); if(sl) sl.el.classList.add('hover');
+}
+function sendHome(pc){
+  pc.el.classList.add('back'); setC(pc,pc.home.x,pc.home.y);
+  setTimeout(()=>pc.el.classList.remove('back'),380);
+}
+function okuUp(e){
+  if(e.pointerId!==od.id) return;
+  const {pc}=od; od=null; pc.el.classList.remove('drag');
+  OK.slots.forEach(sl=>sl.el.classList.remove('hover'));
+  const sl=e.type==='pointerup'?okuSlotAt(pc.at):null;
+  if(sl&&sl.p.k===pc.p.k){
+    sl.filled=true; pc.slot=sl; pc.el.classList.add('snap'); setC(pc,sl.x,sl.y);
+    setTimeout(()=>{pc.el.classList.remove('snap');pc.el.classList.add('placed')},160);
+    tone(700,0,.06,'square',.08); chime(OK.done); burst(lpInv(sl)); OK.done++;
+    dinoEl.style.setProperty('--p',(.06+.3*OK.done/OK.n).toFixed(3));
+    if(OK.done===OK.n) setTimeout(win,350); else speak(pc.p.say,pc.p.lang);
+  }else{
+    if(sl){boing();sl.el.classList.remove('nope');void sl.el.offsetWidth;sl.el.classList.add('nope')}
+    sendHome(pc);
   }
 }
 
@@ -819,6 +962,7 @@ function win(){
   won=true;
   if(game==='yoko'&&LEVELS[mode]){clears[mode]++;save(mode+'N',clears[mode])}
   if(game==='naka'){clears.naka++;save('nakaN',clears.naka)}
+  if(game==='oku'){clears.oku++;save('okuN',clears.oku)}
   speak(`できたね！ ${dino.n}だよ！`); fanfare();
   setTimeout(()=>{document.body.classList.add('won');dinoEl.className='reveal'+(dino.fly?' fly':'');confetti()},450);
   setTimeout(()=>{$('#dinoName').textContent=dino.n;$('#title').classList.add('show');$('#next').classList.add('show')},1300);
@@ -840,6 +984,8 @@ document.querySelectorAll('#gameSeg button').forEach(b=>b.addEventListener('clic
       MS.h=[]; save('michi',MS); ac(); tick(); newRound();
     }else if(game==='naka'){
       const lv=nakaLevel(); clears.naka=lv>=NAKA_LV.length?0:NAKA_LV[lv]; save('nakaN',clears.naka); ac(); tick(); newRound();
+    }else if(game==='oku'){
+      const lv=okuLevel(); clears.oku=lv>=OKU_LV.length?0:OKU_LV[lv]; save('okuN',clears.oku); ac(); tick(); newRound();
     }
     return;
   }
