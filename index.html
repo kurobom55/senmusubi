@@ -322,6 +322,7 @@ body.naka #lines{z-index:1}
   </div>
   <button id="countBtn" type="button">ペア 3</button>
   <button id="voiceBtn" type="button">こえ</button>
+  <button id="recBtn" type="button" aria-label="こえをろくおん">🎤</button>
   <button id="soundBtn" type="button">🔊</button>
 </div>
 
@@ -1279,6 +1280,12 @@ document.querySelectorAll('#modeSeg button').forEach(b=>b.addEventListener('clic
   mode=b.dataset.m; save('mode',mode); ac(); tick(); newRound();
 }));
 $('#countBtn').addEventListener('click',()=>{pairCount=pairCount>=5?2:pairCount+1;save('n',pairCount);newRound()});
+// 声の録音画面（ボイスチェンジャー）をこのアプリの中で開く。
+// iPhoneのホーム画面アプリは保存場所がアプリごとに別なので、ここから開いて録音すると せんむすび の声として使える
+$('#recBtn').addEventListener('click',()=>{
+  if(!confirm('こえの録音画面をひらきますか？\n（保護者の方向け）')) return;
+  stopSay(); location.href='../voice-changer/?from=senmusubi';
+});
 $('#voiceBtn').addEventListener('click',()=>{voiceOn=!voiceOn;save('voice',voiceOn);updateTop();if(!voiceOn){try{speechSynthesis.cancel()}catch(e){}}else{ac();utter('こえ')}});
 $('#soundBtn').addEventListener('click',()=>{soundOn=!soundOn;save('snd',soundOn);updateTop();if(soundOn){ac();tick()}});
 
