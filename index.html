@@ -141,6 +141,30 @@ body.naka .col,body.naka #countBtn{display:none}
 #pz{position:absolute;inset:0;display:none}
 body.pz #pz{display:block}
 body.pz .col,body.pz #countBtn{display:none}
+body.robo #modeSeg{display:none}
+#pz .ghost.sil{filter:brightness(0);opacity:.16}
+#pz .pc.rb{background:transparent;box-shadow:none;border-radius:0;overflow:visible;filter:drop-shadow(0 6px 6px rgba(40,60,90,.3))}
+#pz .pc.rb .in{clip-path:inset(var(--clip))}
+#pz .pc.rb.placed{filter:none}
+#pz .live{position:absolute;inset:0;cursor:pointer}
+#pz .live svg{width:100%;height:100%;display:block;overflow:visible}
+#pz .live.drive svg{animation:drive 1.4s ease-in-out}
+@keyframes drive{25%{transform:translateX(6%)}55%{transform:translateX(-5%)}80%{transform:translateX(2%)}}
+#pz .live.jolt svg{animation:jolt .35s ease}
+@keyframes jolt{40%{transform:translateY(-4%) scale(1.03)}}
+#pz .frame.robo-done{background:transparent;border-color:transparent;box-shadow:none}
+.robo .rp,.robo .wh{transform-box:fill-box;transform-origin:center;transition:transform .7s cubic-bezier(.5,-.35,.4,1.35)}
+.robo .wh{transform:scale(0)}
+.robo.car .rp-torso{transform:translate(0px,96px) scale(1.55,.72)}
+.robo.car .rp-head{transform:translate(-14px,127px) scale(1,.72)}
+.robo.car .rp-larm{transform:translate(-14px,92px) rotate(90deg) scale(.62)}
+.robo.car .rp-rarm{transform:translate(16px,100px) rotate(-90deg) scale(.62)}
+.robo.car .rp-lleg{transform:translate(-42px,38px) rotate(90deg) scale(.5)}
+.robo.car .rp-rleg{transform:translate(44px,38px) rotate(90deg) scale(.5)}
+.robo.car .wh{transform:scale(1);transition-delay:.35s}
+.robo.car .rp-head{transition-delay:.1s}
+.robo.car .rp-larm,.robo.car .rp-rarm{transition-delay:.15s}
+
 #pz .frame{position:absolute;background:#fffaf0;border:6px solid #fff;border-radius:18px;box-shadow:0 8px 0 rgba(40,60,90,.18)}
 #pz .ghost{position:absolute;inset:0;opacity:var(--go,.3);filter:grayscale(.3);pointer-events:none}
 #pz .slotz{position:absolute;border:3px dashed #d6c7a8;border-radius:6px;box-sizing:border-box;transition:background .2s}
@@ -336,6 +360,7 @@ body.naka #lines{z-index:1}
     <button type="button" data-g="michi">みち</button>
     <button type="button" data-g="oku">おく</button>
     <button type="button" data-g="pz">パズル</button>
+    <button type="button" data-g="robo">ロボ</button>
   </div>
   <div class="seg" id="modeSeg">
     <button type="button" data-m="e">え</button>
@@ -544,9 +569,9 @@ const board=$('#board'), leftCol=$('#leftCol'), rightCol=$('#rightCol'), linesG=
 function load(k,d){try{const v=localStorage.getItem('senmusubi_'+k);return v==null?d:JSON.parse(v)}catch(e){return d}}
 function save(k,v){try{localStorage.setItem('senmusubi_'+k,JSON.stringify(v))}catch(e){}}
 let pairCount=load('n',3), soundOn=load('snd',true), voiceOn=load('voice',true), mode=load('mode','e'), game=load('game',null),
-    clears={kazu:load('kazuN',0),abc:load('abcN',0),naka:load('nakaN',0),oku:load('okuN',0),pz:load('pzN',0)};
+    clears={kazu:load('kazuN',0),abc:load('abcN',0),naka:load('nakaN',0),oku:load('okuN',0),pz:load('pzN',0),robo:load('roboN',0)};
 if(mode==='michi'){game=game||'michi';mode='e'}
-if(!['yoko','naka','michi','oku','pz'].includes(game)) game='yoko';
+if(!['yoko','naka','michi','oku','pz','robo'].includes(game)) game='yoko';
 if(!MODES[mode]) mode='e';
 const stars=n=>'<sup>'+'★'.repeat(n)+'</sup>';
 function fitBoard(){board.style.top=($('#top').getBoundingClientRect().bottom+8)+'px'}
@@ -671,7 +696,7 @@ function sizeCards(){
   const h=board.clientHeight, w=board.clientWidth;
   if(game==='naka'){nakaLayout();requestAnimationFrame(redraw);return}
   if(game==='oku'){okuLayout();return}
-  if(game==='pz'){pzLayout();return}
+  if(game==='pz'||game==='robo'){pzLayout();return}
   if(game==='michi'){ if(R && !md && !R.done && (Math.abs(w-R.W)>40||Math.abs(h-R.H)>40)) setupRoad(); return; }
   const s=Math.max(60,Math.min(h/pairCount-20,w*.27,190));
   document.documentElement.style.setProperty('--cardsize',s+'px');
@@ -684,6 +709,7 @@ function updateTop(){
   $('#gameSeg [data-g="michi"]').innerHTML='みち'+stars(michiLevel());
   $('#gameSeg [data-g="oku"]').innerHTML='おく'+stars(okuLevel());
   $('#gameSeg [data-g="pz"]').innerHTML='パズル'+stars(pzLevel());
+  $('#gameSeg [data-g="robo"]').innerHTML='ロボ'+stars(roboLevel());
   $('#modeSeg [data-m="kazu"]').innerHTML='123'+(game==='yoko'?stars(level('kazu')):'');
   $('#modeSeg [data-m="abc"]').innerHTML='ABC'+(game==='yoko'?stars(level('abc')):'');
   $('#countBtn').textContent='ペア '+pairCount;
@@ -697,13 +723,15 @@ function newRound(){
   document.body.classList.toggle('michi',game==='michi');
   document.body.classList.toggle('naka',game==='naka');
   document.body.classList.toggle('oku',game==='oku');
-  document.body.classList.toggle('pz',game==='pz');
+  document.body.classList.toggle('pz',game==='pz'||game==='robo');
+  document.body.classList.toggle('robo',game==='robo');
   nakaEl.innerHTML=''; NK=null; okuEl.innerHTML=''; OK=null; od=null;
   pzEl.innerHTML=''; pzEl.classList.remove('whole'); PZ=null; pd=null;
-  if(game==='pz'){
+  if(game==='pz'||game==='robo'){
     leftCol.innerHTML=''; rightCol.innerHTML=''; roadSvg.innerHTML=''; R=null;
-    dinoEl.className='hint'; dinoEl.innerHTML=dino.svg; dinoEl.style.setProperty('--p','.06');
-    updateTop(); pzRound(); return;
+    if(game==='robo'){dinoEl.className='';dinoEl.innerHTML=''}      // ロボはロボ自身がごほうび
+    else{dinoEl.className='hint'; dinoEl.innerHTML=dino.svg; dinoEl.style.setProperty('--p','.06')}
+    updateTop(); pzRound(game==='robo'?roboSpec():gridSpec()); return;
   }
   if(game==='oku'){
     leftCol.innerHTML=''; rightCol.innerHTML=''; roadSvg.innerHTML=''; R=null;
@@ -745,10 +773,11 @@ function clearHover(){document.querySelectorAll('.card.hover').forEach(c=>c.clas
 
 board.addEventListener('pointerdown',e=>{
   if(!won) hideSay();
+  if(game==='robo'&&e.target.closest('#pz .live')){roboToggle();return}
   if(game==='michi'){michiDown(e);return}
   if(game==='naka'){nakaDown(e);return}
   if(game==='oku'){okuDown(e);return}
-  if(game==='pz'){pzDown(e);return}
+  if(game==='pz'||game==='robo'){pzDown(e);return}
   const card=e.target.closest('.card');
   if(!card||card.classList.contains('done')||drag||won) return;
   e.preventDefault(); ac(); tick();
@@ -986,75 +1015,82 @@ function okuUp(e){
 
 /* ===== パズル ===== */
 const pzEl=$('#pz');
-/* ★1: 2まい（左右）・うすい見本あり / ★2: 3まい（たて3つ）・見本うすめ / ★3: 4まい（2×2）・見本ほぼなし
-   数字は「その★になるのに必要なクリア回数」 */
-const PZ_LV=[0,10,20], PZ_GRID={1:[2,1],2:[3,1],3:[2,2]}, PZ_GHOST={1:.38,2:.25,3:.12};
+/* ★1: 2まい（左右） / ★2: 3まい（たて3つ） / ★3: 4まい（2×2） / ★4: 6まい（3×2） / ★5: 9まい（3×3）
+   見本の絵は★が上がるほどうすくなる。数字は「その★になるのに必要なクリア回数」 */
+const PZ_LV=[0,10,20,30,40], PZ_GRID={1:[2,1],2:[3,1],3:[2,2],4:[3,2],5:[3,3]}, PZ_GHOST={1:.38,2:.25,3:.14,4:.1,5:.08};
 function pzLevel(){let lv=1;PZ_LV.forEach((v,i)=>{if(clears.pz>=v)lv=i+1});return lv}
 let PZ=null, pd=null;
 function pzPicture(){
-  const sq=(svg)=>({svg,ar:1});
   const glyphPic=(t,bg,fg)=>`<svg viewBox="0 0 100 100"><rect width="100" height="100" fill="${bg}"/><circle cx="50" cy="50" r="40" fill="#fff" opacity=".55"/><text x="50" y="52" dy=".35em" text-anchor="middle" font-size="62" font-weight="800" font-family="M PLUS Rounded 1c,Hiragino Maru Gothic ProN,sans-serif" fill="${fg}">${t}</text></svg>`;
   const BG=['#ffe066','#a5d8ff','#b2f2bb','#ffc9c9','#e5dbff','#ffd8a8'], FG=['#e8590c','#1971c2','#2f9e44','#e03131','#7048e8','#d6336c'];
   const i=Math.random()*BG.length|0;
-  if(mode==='kazu'){const v=1+(Math.random()*6|0);return{...sq(glyphPic(v,BG[i],FG[i])),say:YOMI[v-1]}}
-  if(mode==='abc'){const c='ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.random()*26|0];return{...sq(glyphPic(c,BG[i],FG[i])),say:c,lang:'en-US'}}
+  if(mode==='kazu'){const v=1+(Math.random()*6|0);return{svg:glyphPic(v,BG[i],FG[i]),ar:1,say:YOMI[v-1]}}
+  if(mode==='abc'){const c='ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.random()*26|0];return{svg:glyphPic(c,BG[i],FG[i]),ar:1,say:c,lang:'en-US'}}
   if(mode==='photo'&&PHOTOS.length){const p=PHOTOS[Math.random()*PHOTOS.length|0];return{svg:`<img class="ph" src="${p.src}" alt="">`,ar:1,say:p.name||''}}
-  // え: いつもの絵 と きょうりゅう をまぜて
   if(Math.random()<.5){const d=DINOS[Math.random()*DINOS.length|0];return{svg:d.svg,ar:4/3,say:d.n}}
   const it=ITEMS[Math.random()*ITEMS.length|0];
   return{svg:`<svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#fff8e1"/><svg x="6" y="6" width="88" height="88" viewBox="0 0 100 100">${it.svg.replace(/^<svg viewBox="0 0 100 100">/,'').replace(/<\/svg>$/,'')}</svg></svg>`,ar:1,say:it.n};
 }
-function pzRound(){
-  const lv=pzLevel(), [cols,rows]=PZ_GRID[lv], pic=pzPicture();
-  PZ={lv,cols,rows,pic,done:0,n:cols*rows,pieces:[],slots:[]};
+/* パズルの「設計図」: 絵・大きさ・ピースの切り取り範囲 */
+function gridSpec(){
+  const lv=pzLevel(), [cols,rows]=PZ_GRID[lv], pic=pzPicture(), IW=pic.ar, IH=1, rects=[];
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++) rects.push([c*IW/cols,r*IH/rows,IW/cols,IH/rows]);
+  return{svg:pic.svg,IW,IH,rects,ghost:PZ_GHOST[lv],outlines:true,say:pic.say,lang:pic.lang};
+}
+function pzRound(spec){
+  PZ={spec,done:0,n:spec.rects.length,pieces:[],slots:[],finished:false};
   PZ.frame=document.createElement('div'); PZ.frame.className='frame';
-  PZ.frame.innerHTML=`<div class="ghost" style="--go:${PZ_GHOST[lv]}">${pic.svg}</div>`;
+  PZ.frame.innerHTML=`<div class="ghost${spec.sil?' sil':''}" style="--go:${spec.ghost}">${spec.svg}</div>`;
   PZ.tray=document.createElement('div'); PZ.tray.className='tray';
   pzEl.append(PZ.tray,PZ.frame);
-  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
-    const sl=document.createElement('div'); sl.className='slotz'; PZ.frame.appendChild(sl);
-    PZ.slots.push({el:sl,r,c});
-  }
+  spec.rects.forEach(rc=>{
+    const sl={rc}; if(spec.outlines){sl.el=document.createElement('div');sl.el.className='slotz';PZ.frame.appendChild(sl.el)}
+    PZ.slots.push(sl);
+  });
   const order=shuffle(PZ.slots.map((_,i)=>i));
-  if(order.every((v,i)=>v===i)&&order.length>1) order.reverse();   // 最初から正しい順にならないように
+  if(order.length>1&&order.every((v,i)=>v===i)) order.reverse();     // 最初から正しい順にならないように
   order.forEach(i=>{
-    const el=document.createElement('div'); el.className='pc';
-    el.innerHTML=`<div class="in">${pic.svg}</div>`; pzEl.appendChild(el);
+    const el=document.createElement('div'); el.className='pc'+(spec.robo?' rb':'');
+    el.innerHTML=`<div class="in">${spec.svg}</div>`; pzEl.appendChild(el);
     PZ.pieces.push({el,slot:PZ.slots[i],placed:false});
   });
   pzLayout();
 }
 function pzLayout(){
   if(!PZ) return;
-  const W=board.clientWidth, H=board.clientHeight, gap=14;
-  const tH=Math.max(90,H*.32), bH=H-tH-gap, ar=PZ.pic.ar;
-  let bw=Math.min(W*.92,(bH-12)*ar,560), bh=bw/ar;
+  const sp=PZ.spec, W=board.clientWidth, H=board.clientHeight, gap=14;
+  const tH=PZ.finished?0:Math.max(90,H*.32), bH=H-tH-(PZ.finished?0:gap), ar=sp.IW/sp.IH;
+  const bw=Math.min(W*.92,(bH-12)*ar,PZ.finished&&sp.robo?640:560), bh=bw/ar, k=bw/sp.IW;
   const bx=(W-bw)/2, by=(bH-bh)/2;
-  PZ.bw=bw; PZ.bh=bh; PZ.pw=bw/PZ.cols; PZ.ph=bh/PZ.rows;
+  PZ.k=k; PZ.bw=bw; PZ.bh=bh;
   Object.assign(PZ.frame.style,{left:bx-6+'px',top:by-6+'px',width:bw+12+'px',height:bh+12+'px'});   // 枠の太さ(6px)ぶん大きく
   PZ.slots.forEach(sl=>{
-    Object.assign(sl.el.style,{left:sl.c*PZ.pw+'px',top:sl.r*PZ.ph+'px',width:PZ.pw+'px',height:PZ.ph+'px'});
-    sl.x=bx+sl.c*PZ.pw+PZ.pw/2; sl.y=by+sl.r*PZ.ph+PZ.ph/2;
+    const [x,y,w,h]=sl.rc; sl.w=w*k; sl.h=h*k; sl.x=bx+(x+w/2)*k; sl.y=by+(y+h/2)*k;
+    if(sl.el) Object.assign(sl.el.style,{left:x*k+'px',top:y*k+'px',width:sl.w+'px',height:sl.h+'px'});
   });
+  PZ.tray.style.display=PZ.finished?'none':'';
+  if(PZ.finished) return;
   const tA={x:0,y:bH+gap,w:W,h:tH};
   Object.assign(PZ.tray.style,{left:tA.x+'px',top:tA.y+'px',width:tA.w+'px',height:tA.h+'px'});
   // トレイに並べるときの縮小率（いちばん大きく見える並べ方を選ぶ）
-  const n=PZ.n; let best={sc:0,cols:n};
-  for(let c=1;c<=n;c++){const r=Math.ceil(n/c),sc=Math.min((tA.w-24)/c/PZ.pw,(tA.h-24)/r/PZ.ph,1)*.86;if(sc>best.sc)best={sc,cols:c}}
+  const n=PZ.n, mw=Math.max(...PZ.slots.map(s=>s.w)), mh=Math.max(...PZ.slots.map(s=>s.h));
+  let best={sc:0,cols:n};
+  for(let c=1;c<=n;c++){const r=Math.ceil(n/c),sc=Math.min((tA.w-24)/c/mw,(tA.h-24)/r/mh,1)*.86;if(sc>best.sc)best={sc,cols:c}}
   PZ.sc=best.sc;
   const cw=(tA.w-24)/best.cols, rh=(tA.h-24)/Math.ceil(n/best.cols);
   PZ.pieces.forEach((p,i)=>{
     const r=Math.floor(i/best.cols), inRow=Math.min(best.cols,n-r*best.cols), c=i-r*best.cols, off=(best.cols-inRow)*cw/2;
     p.home={x:tA.x+12+off+c*cw+cw/2,y:tA.y+12+r*rh+rh/2};
-    Object.assign(p.el.style,{width:PZ.pw+'px',height:PZ.ph+'px'});
-    const inn=p.el.firstChild;
-    Object.assign(inn.style,{width:bw+'px',height:bh+'px',left:-p.slot.c*PZ.pw+'px',top:-p.slot.r*PZ.ph+'px'});
+    const sl=p.slot, [x,y]=sl.rc;
+    Object.assign(p.el.style,{width:sl.w+'px',height:sl.h+'px'});
+    Object.assign(p.el.firstChild.style,{width:bw+'px',height:bh+'px',left:-x*k+'px',top:-y*k+'px'});
+    if(sp.robo) p.el.style.setProperty('--clip',`${y*k}px ${bw-(x*k+sl.w)}px ${bh-(y*k+sl.h)}px ${x*k}px`);
     if(pd&&pd.p===p) return;
-    if(p.placed) pzSet(p,p.slot.x,p.slot.y,1); else pzSet(p,p.home.x,p.home.y,PZ.sc);
+    if(p.placed) pzSet(p,sl.x,sl.y,1); else pzSet(p,p.home.x,p.home.y,PZ.sc);
   });
 }
 function pzSet(p,x,y,sc){
-  p.el.style.left=(x-PZ.pw/2)+'px'; p.el.style.top=(y-PZ.ph/2)+'px'; p.at={x,y};
+  p.el.style.left=(x-p.slot.w/2)+'px'; p.el.style.top=(y-p.slot.h/2)+'px'; p.at={x,y};
   if(sc!=null) p.el.style.setProperty('--sc',sc);
 }
 function pzDown(e){
@@ -1072,28 +1108,120 @@ function pzMove(e){
   pzSet(p,x,y);
   // 正しい場所にしか はまらないので、すいこむ範囲は広めでOK（細長いピースでも届きやすく）
   const sl=p.slot, d=Math.hypot(x-sl.x,y-sl.y);
-  const snapR=Math.max(60,Math.min(PZ.pw,PZ.ph)*.6,Math.max(PZ.pw,PZ.ph)*.35);
-  sl.el.classList.toggle('near',d<snapR*1.6);
+  const snapR=Math.max(60,Math.min(sl.w,sl.h)*.6,Math.max(sl.w,sl.h)*.35);
+  if(sl.el) sl.el.classList.toggle('near',d<snapR*1.6);
   if(d<snapR) pzPlace(p);          // 近づいたら、すいこまれるように はまる
 }
 function pzPlace(p){
   pd=null; const el=p.el;
-  el.classList.remove('drag'); el.classList.add('snap'); p.placed=true; p.slot.el.classList.remove('near');
+  el.classList.remove('drag'); el.classList.add('snap'); p.placed=true; if(p.slot.el) p.slot.el.classList.remove('near');
   pzSet(p,p.slot.x,p.slot.y,1);
   setTimeout(()=>{el.classList.remove('snap');el.classList.add('placed')},190);
   tone(700,0,.06,'square',.08); chime(PZ.done); burst(lpInv(p.slot)); PZ.done++;
-  dinoEl.style.setProperty('--p',(.06+.3*PZ.done/PZ.n).toFixed(3));
+  if(!PZ.spec.robo) dinoEl.style.setProperty('--p',(.06+.3*PZ.done/PZ.n).toFixed(3));
   if(PZ.done===PZ.n){
     won=true;
-    setTimeout(()=>{pzEl.classList.add('whole');sayName(PZ.pic.say,PZ.pic.lang,win)},350);
+    if(PZ.spec.robo) setTimeout(roboFinish,350);
+    else setTimeout(()=>{pzEl.classList.add('whole');sayName(PZ.spec.say,PZ.spec.lang,win)},350);
   }
 }
 function pzUp(e){
   if(e.pointerId!==pd.id) return;
-  const p=pd.p; pd=null; p.slot.el.classList.remove('near');
+  const p=pd.p; pd=null; if(p.slot.el) p.slot.el.classList.remove('near');
   p.el.classList.remove('drag'); p.el.classList.add('back');
   pzSet(p,p.home.x,p.home.y,PZ.sc);
   setTimeout(()=>p.el.classList.remove('back'),380);
+}
+
+/* ===== ブロックロボ（オリジナル） ===== */
+const ROBO_VARIANTS=[
+  {n:'あかロボ',  main:'#e63946',sub:'#1d6fd8',acc:'#ffd23f',leg:'#5c6773',lite:'#ff8f98'},
+  {n:'あおロボ',  main:'#1d6fd8',sub:'#ffd23f',acc:'#e9ecef',leg:'#3d4652',lite:'#7fb5ff'},
+  {n:'みどりロボ',main:'#2f9e44',sub:'#ff922b',acc:'#ffe066',leg:'#495057',lite:'#8ce99a'},
+  {n:'きいロボ',  main:'#fcc419',sub:'#e63946',acc:'#f1f3f5',leg:'#343a40',lite:'#ffe8a3'}
+];
+const shade=(hex,f)=>{const n=parseInt(hex.slice(1),16);let r=n>>16,g=n>>8&255,b=n&255;
+  r=Math.round(r*f);g=Math.round(g*f);b=Math.round(b*f);return '#'+((1<<24)+(Math.min(r,255)<<16)+(Math.min(g,255)<<8)+Math.min(b,255)).toString(16).slice(1)};
+function brick(x,y,w,h,c,studs){
+  let s=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="${c}"/>`+
+        `<rect x="${x}" y="${y+h-7}" width="${w}" height="7" rx="3" fill="${shade(c,.78)}"/>`+
+        `<rect x="${x+4}" y="${y+4}" width="${w-8}" height="5" rx="2.5" fill="#fff" opacity=".28"/>`;
+  if(studs){const n=Math.max(1,Math.floor(w/26)),gap=w/n;for(let i=0;i<n;i++){const cx=x+gap*i+gap/2;
+    s+=`<rect x="${cx-8}" y="${y-6}" width="16" height="8" rx="3" fill="${c}"/><rect x="${cx-8}" y="${y-6}" width="16" height="3" rx="1.5" fill="#fff" opacity=".35"/>`}}
+  return s;
+}
+function roboSvg(v){
+  const head=`<g class="rp rp-head">
+     <line x1="150" y1="26" x2="150" y2="10" stroke="${v.leg}" stroke-width="4" stroke-linecap="round"/><circle cx="150" cy="10" r="6" fill="${v.main}"/>
+     ${brick(115,26,70,58,v.acc,false)}
+     <rect x="124" y="40" width="52" height="20" rx="9" fill="#26293a"/>
+     <circle cx="139" cy="50" r="5.5" fill="#5ef0ff"/><circle cx="161" cy="50" r="5.5" fill="#5ef0ff"/>
+     <circle cx="141" cy="48" r="1.8" fill="#fff"/><circle cx="163" cy="48" r="1.8" fill="#fff"/>
+     <rect x="136" y="66" width="28" height="8" rx="4" fill="${v.leg}"/>
+   </g>`;
+  const torso=`<g class="rp rp-torso">
+     ${brick(97,94,106,90,v.main,true)}
+     <rect x="118" y="110" width="64" height="44" rx="8" fill="${v.lite}"/>
+     <circle cx="150" cy="132" r="13" fill="${v.acc}" stroke="${shade(v.acc,.8)}" stroke-width="3"/>
+     <path d="M150 123l3 6 6 1-4.5 4 1 6-5.5-3-5.5 3 1-6-4.5-4 6-1z" fill="${v.main}"/>
+     <circle cx="114" cy="168" r="5" fill="#5ef0ff"/><circle cx="186" cy="168" r="5" fill="#ff6b6b"/>
+   </g>`;
+  const arm=(x,cls)=>`<g class="rp ${cls}">${brick(x,98,32,72,v.sub,true)}<rect x="${x+2}" y="166" width="28" height="16" rx="6" fill="${v.leg}"/></g>`;
+  const leg=(x,cls)=>`<g class="rp ${cls}">${brick(x,190,36,78,v.leg,false)}<rect x="${x+6}" y="206" width="24" height="10" rx="4" fill="${shade(v.leg,1.35)}"/>${brick(x-6,266,48,24,v.sub,false)}</g>`;
+  const wheel=(cx,cls)=>`<g class="wh ${cls}"><circle cx="${cx}" cy="272" r="26" fill="#26293a"/><circle cx="${cx}" cy="272" r="13" fill="#ced4da"/><circle cx="${cx}" cy="272" r="5" fill="#868e96"/></g>`;
+  return `<svg viewBox="0 0 300 300" class="robo">${leg(107,'rp-lleg')}${leg(157,'rp-rleg')}${arm(59,'rp-larm')}${arm(209,'rp-rarm')}${torso}${head}${wheel(82,'wh-b')}${wheel(218,'wh-f')}</svg>`;
+}
+/* パーツの切り取り範囲（SVGの座標）。重ならないように区切ってある */
+const ROBO_RECTS={head:[108,2,84,86],torso:[95,86,110,102],larm:[53,86,42,102],rarm:[205,86,42,102],lleg:[99,188,51,108],rleg:[150,188,51,108]};
+const ROBO_SETS={1:[['head'],['torso','larm','rarm'],['lleg','rleg']],
+                 2:[['head'],['torso'],['larm'],['rarm'],['lleg','rleg']],
+                 3:[['head'],['torso'],['larm'],['rarm'],['lleg'],['rleg']]};
+
+/* ロボ: ★1 3パーツ（頭・からだ＋うで・あし） / ★2 5パーツ / ★3 6パーツ（ぜんぶバラバラ）
+   シルエットが見本。★1・★2はパーツの場所に点線のわくもあり */
+const ROBO_LV=[0,10,20];
+function roboLevel(){let lv=1;ROBO_LV.forEach((v,i)=>{if(clears.robo>=v)lv=i+1});return lv}
+let roboBag=[];
+function roboSpec(){
+  const lv=roboLevel();
+  if(!roboBag.length) roboBag=shuffle(ROBO_VARIANTS);
+  const v=roboBag.shift();
+  const rects=ROBO_SETS[lv].map(set=>{
+    const rs=set.map(k=>ROBO_RECTS[k]);
+    const x0=Math.min(...rs.map(r=>r[0])), y0=Math.min(...rs.map(r=>r[1]));
+    const x1=Math.max(...rs.map(r=>r[0]+r[2])), y1=Math.max(...rs.map(r=>r[1]+r[3]));
+    return [x0,y0,x1-x0,y1-y0];
+  });
+  return{svg:roboSvg(v),IW:300,IH:300,rects,ghost:1,sil:true,outlines:lv<3,robo:v,say:v.n};
+}
+function sfxTransform(toCar){
+  const b=toCar?1:1.25;
+  tone(260*b,0,.28,'sawtooth',.06,520*b);
+  [.3,.42,.54].forEach((t,i)=>tone(950-i*120,t,.05,'square',.07));
+  tone(toCar?392:523,.7,.18,'triangle',.18); tone(toCar?523:392,.86,.25,'triangle',.18);
+}
+function sfxCar(){tone(85,0,.6,'sawtooth',.07,140);tone(523,.7,.14,'square',.08);tone(523,.9,.25,'square',.08)}
+function roboFinish(){
+  PZ.finished=true;
+  const live=document.createElement('div'); live.className='live'; live.innerHTML=PZ.spec.svg;
+  PZ.pieces.forEach(p=>p.el.remove()); PZ.frame.querySelectorAll('.slotz,.ghost').forEach(e=>e.remove());
+  PZ.frame.classList.add('robo-done'); PZ.frame.appendChild(live); PZ.live=live;
+  pzLayout(); fanfare(); confetti();
+  clears.robo++; save('roboN',clears.robo);
+  sayName(PZ.spec.say,'ja-JP',()=>{
+    setTimeout(()=>{roboToggle(true);$('#next').classList.add('show')},300);
+  });
+}
+function roboToggle(auto){
+  if(!PZ||!PZ.live) return;
+  ac();
+  const svg=PZ.live.querySelector('svg'), toCar=!svg.classList.contains('car');
+  svg.classList.toggle('car',toCar); sfxTransform(toCar);
+  PZ.live.classList.remove('drive','jolt'); void PZ.live.offsetWidth;
+  if(toCar) setTimeout(()=>{if(!PZ||!PZ.live)return;PZ.live.classList.add('drive');sfxCar()},800);
+  else PZ.live.classList.add('jolt');
+  if(!auto&&!toCar) setTimeout(()=>utter('ロボット！'),900);
+  if(!auto&&toCar) setTimeout(()=>utter('ブーブー！'),1700);
 }
 
 /* ===== みち ===== */
@@ -1363,6 +1491,8 @@ document.querySelectorAll('#gameSeg button').forEach(b=>b.addEventListener('clic
       const lv=okuLevel(); clears.oku=lv>=OKU_LV.length?0:OKU_LV[lv]; save('okuN',clears.oku); ac(); tick(); newRound();
     }else if(game==='pz'){
       const lv=pzLevel(); clears.pz=lv>=PZ_LV.length?0:PZ_LV[lv]; save('pzN',clears.pz); ac(); tick(); newRound();
+    }else if(game==='robo'){
+      const lv=roboLevel(); clears.robo=lv>=ROBO_LV.length?0:ROBO_LV[lv]; save('roboN',clears.robo); ac(); tick(); newRound();
     }
     return;
   }
