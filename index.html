@@ -145,7 +145,8 @@ body.robo #modeSeg{display:none}
 #pz .ghost.sil{filter:brightness(0);opacity:.16}
 #pz .pc.rb{background:transparent;box-shadow:none;border-radius:0;overflow:visible;filter:drop-shadow(0 6px 6px rgba(40,60,90,.3))}
 #pz .pc.rb .in{clip-path:inset(var(--clip))}
-#pz .pc.rb.placed{filter:none}
+#pz .pc.rb.placed{filter:none;box-shadow:none}
+#pz .pc.rb.placed.rb{box-shadow:none}
 #pz .live{position:absolute;inset:0;cursor:pointer}
 #pz .live svg{width:100%;height:100%;display:block;overflow:visible}
 #pz .live.drive svg{animation:drive 1.4s ease-in-out}
@@ -1043,8 +1044,8 @@ function pzRound(spec){
   PZ.frame.innerHTML=`<div class="ghost${spec.sil?' sil':''}" style="--go:${spec.ghost}">${spec.svg}</div>`;
   PZ.tray=document.createElement('div'); PZ.tray.className='tray';
   pzEl.append(PZ.tray,PZ.frame);
-  spec.rects.forEach(rc=>{
-    const sl={rc}; if(spec.outlines){sl.el=document.createElement('div');sl.el.className='slotz';PZ.frame.appendChild(sl.el)}
+  spec.rects.forEach((rc,i)=>{
+    const sl={rc,g:spec.groups?spec.groups[i]:null,filled:false}; if(spec.outlines){sl.el=document.createElement('div');sl.el.className='slotz';PZ.frame.appendChild(sl.el)}
     PZ.slots.push(sl);
   });
   const order=shuffle(PZ.slots.map((_,i)=>i));
@@ -1081,13 +1082,17 @@ function pzLayout(){
   PZ.pieces.forEach((p,i)=>{
     const r=Math.floor(i/best.cols), inRow=Math.min(best.cols,n-r*best.cols), c=i-r*best.cols, off=(best.cols-inRow)*cw/2;
     p.home={x:tA.x+12+off+c*cw+cw/2,y:tA.y+12+r*rh+rh/2};
-    const sl=p.slot, [x,y]=sl.rc;
-    Object.assign(p.el.style,{width:sl.w+'px',height:sl.h+'px'});
-    Object.assign(p.el.firstChild.style,{width:bw+'px',height:bh+'px',left:-x*k+'px',top:-y*k+'px'});
-    if(sp.robo) p.el.style.setProperty('--clip',`${y*k}px ${bw-(x*k+sl.w)}px ${bh-(y*k+sl.h)}px ${x*k}px`);
+    pcCrop(p);
+    const sl=p.slot;
     if(pd&&pd.p===p) return;
     if(p.placed) pzSet(p,sl.x,sl.y,1); else pzSet(p,p.home.x,p.home.y,PZ.sc);
   });
+}
+function pcCrop(p){   // ピースに、担当する場所の部分の絵を表示する
+  const sl=p.slot, [x,y]=sl.rc, k=PZ.k, bw=PZ.bw, bh=PZ.bh;
+  Object.assign(p.el.style,{width:sl.w+'px',height:sl.h+'px'});
+  Object.assign(p.el.firstChild.style,{width:bw+'px',height:bh+'px',left:-x*k+'px',top:-y*k+'px'});
+  if(PZ.spec.robo) p.el.style.setProperty('--clip',`${y*k}px ${bw-(x*k+sl.w)}px ${bh-(y*k+sl.h)}px ${x*k}px`);
 }
 function pzSet(p,x,y,sc){
   p.el.style.left=(x-p.slot.w/2)+'px'; p.el.style.top=(y-p.slot.h/2)+'px'; p.at={x,y};
@@ -1107,14 +1112,26 @@ function pzMove(e){
   const q=lp(e), p=pd.p, x=q.x-pd.off.x, y=q.y-pd.off.y;
   pzSet(p,x,y);
   // 正しい場所にしか はまらないので、すいこむ範囲は広めでOK（細長いピースでも届きやすく）
-  const sl=p.slot, d=Math.hypot(x-sl.x,y-sl.y);
+  // 左右の腕・足のように見た目が同じパーツは、あいている同じグループの場所ならどこでもOK
+  const cands=PZ.slots.filter(s2=>!s2.filled&&(s2===p.slot||(p.slot.g&&s2.g===p.slot.g)));
+  let sl=null,d=Infinity;
+  cands.forEach(s2=>{const dd=Math.hypot(x-s2.x,y-s2.y);if(dd<d){d=dd;sl=s2}});
+  cands.forEach(s2=>{if(s2.el)s2.el.classList.remove('near')});
+  if(!sl) return;
   const snapR=Math.max(60,Math.min(sl.w,sl.h)*.6,Math.max(sl.w,sl.h)*.35);
   if(sl.el) sl.el.classList.toggle('near',d<snapR*1.6);
-  if(d<snapR) pzPlace(p);          // 近づいたら、すいこまれるように はまる
+  if(d<snapR){
+    if(sl!==p.slot){   // 担当の場所を入れかえる（もう片方のパーツは残った場所の担当になる）
+      const other=PZ.pieces.find(q=>q.slot===sl);
+      if(other){other.slot=p.slot;pcCrop(other)}
+      p.slot=sl; pcCrop(p);
+    }
+    pzPlace(p);          // 近づいたら、すいこまれるように はまる
+  }
 }
 function pzPlace(p){
   pd=null; const el=p.el;
-  el.classList.remove('drag'); el.classList.add('snap'); p.placed=true; if(p.slot.el) p.slot.el.classList.remove('near');
+  el.classList.remove('drag'); el.classList.add('snap'); p.placed=true; p.slot.filled=true; if(p.slot.el) p.slot.el.classList.remove('near');
   pzSet(p,p.slot.x,p.slot.y,1);
   setTimeout(()=>{el.classList.remove('snap');el.classList.add('placed')},190);
   tone(700,0,.06,'square',.08); chime(PZ.done); burst(lpInv(p.slot)); PZ.done++;
@@ -1127,7 +1144,7 @@ function pzPlace(p){
 }
 function pzUp(e){
   if(e.pointerId!==pd.id) return;
-  const p=pd.p; pd=null; if(p.slot.el) p.slot.el.classList.remove('near');
+  const p=pd.p; pd=null; PZ.slots.forEach(s2=>{if(s2.el)s2.el.classList.remove('near')});
   p.el.classList.remove('drag'); p.el.classList.add('back');
   pzSet(p,p.home.x,p.home.y,PZ.sc);
   setTimeout(()=>p.el.classList.remove('back'),380);
@@ -1172,7 +1189,9 @@ function roboSvg(v){
   return `<svg viewBox="0 0 300 300" class="robo">${leg(107,'rp-lleg')}${leg(157,'rp-rleg')}${arm(59,'rp-larm')}${arm(209,'rp-rarm')}${torso}${head}${wheel(82,'wh-b')}${wheel(218,'wh-f')}</svg>`;
 }
 /* パーツの切り取り範囲（SVGの座標）。重ならないように区切ってある */
-const ROBO_RECTS={head:[108,2,84,86],torso:[95,86,110,102],larm:[53,86,42,102],rarm:[205,86,42,102],lleg:[99,188,51,108],rleg:[150,188,51,108]};
+const ROBO_RECTS={head:[108,2,84,86],torso:[95,86,110,102],larm:[55,86,40,102],rarm:[205,86,40,102],lleg:[100,188,50,108],rleg:[150,188,50,108]};
+/* 見た目が同じパーツは同じグループ → 左右どちらの場所にもはまる */
+const ROBO_GROUP={larm:'arm',rarm:'arm',lleg:'leg',rleg:'leg'};
 const ROBO_SETS={1:[['head'],['torso','larm','rarm'],['lleg','rleg']],
                  2:[['head'],['torso'],['larm'],['rarm'],['lleg','rleg']],
                  3:[['head'],['torso'],['larm'],['rarm'],['lleg'],['rleg']]};
@@ -1192,7 +1211,8 @@ function roboSpec(){
     const x1=Math.max(...rs.map(r=>r[0]+r[2])), y1=Math.max(...rs.map(r=>r[1]+r[3]));
     return [x0,y0,x1-x0,y1-y0];
   });
-  return{svg:roboSvg(v),IW:300,IH:300,rects,ghost:1,sil:true,outlines:lv<3,robo:v,say:v.n};
+  const groups=ROBO_SETS[lv].map(set=>set.length===1?ROBO_GROUP[set[0]]||null:null);
+  return{svg:roboSvg(v),IW:300,IH:300,rects,groups,ghost:1,sil:true,outlines:lv<3,robo:v,say:v.n};
 }
 function sfxTransform(toCar){
   const b=toCar?1:1.25;
