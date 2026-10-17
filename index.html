@@ -240,6 +240,37 @@ body.naka #lines{z-index:1}
   .seg button,#top > button{font-size:13px;padding:5px 7px}
   .seg sup{font-size:8px}
 }
+/* スプラッシュ */
+#splash{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:linear-gradient(var(--b1),var(--b2));overflow:hidden;transition:opacity .45s ease;touch-action:none}
+#splash[hidden]{display:none}
+#splash.bye{opacity:0;pointer-events:none}
+#splash .sp-art{width:min(62vw,52vh,420px);animation:sppop .7s cubic-bezier(.2,1.6,.4,1) both;position:relative;z-index:2}
+#splash .sp-art.big{width:min(80vw,60vh,560px)}
+#splash .sp-art svg{width:100%;height:auto;display:block;overflow:visible}
+#splash .sp-text{margin-top:2vh;font-size:clamp(30px,8vw,72px);color:#ff6b6b;letter-spacing:.06em;text-align:center;line-height:1.25;padding:0 16px;
+  text-shadow:4px 4px 0 #fff,-4px 4px 0 #fff,4px -4px 0 #fff,-4px -4px 0 #fff,0 8px 0 rgba(40,60,90,.15);
+  animation:spup .6s .25s cubic-bezier(.2,1.4,.4,1) both;position:relative;z-index:2}
+#splash.dark .sp-text{color:#ffd43b;text-shadow:3px 3px 0 #2b2b3d,-3px 3px 0 #2b2b3d,3px -3px 0 #2b2b3d,-3px -3px 0 #2b2b3d}
+#splash .sp-dino{position:absolute;right:-4vw;bottom:-3vh;width:min(42vw,36vh,320px);transform:rotate(-6deg);animation:sppeek .8s .35s ease-out both;z-index:1}
+#splash .sp-dino svg{width:100%;height:auto;display:block}
+@keyframes sppop{0%{transform:scale(.4) rotate(-8deg);opacity:0}100%{transform:none;opacity:1}}
+@keyframes spup{0%{transform:translateY(30px);opacity:0}100%{transform:none;opacity:1}}
+@keyframes sppeek{0%{transform:translate(40%,40%) rotate(-6deg)}100%{transform:rotate(-6deg)}}
+#splash .fx{position:absolute;inset:0;pointer-events:none;z-index:0}
+#splash .fx i{position:absolute;top:-6vh;display:block;animation:spfall linear infinite}
+#splash .fx-snow i{width:12px;height:12px;border-radius:50%;background:#fff;opacity:.9}
+#splash .fx-petal i{width:14px;height:10px;border-radius:70% 0 70% 0;background:#ffb7c5}
+#splash .fx-leaf i{width:16px;height:12px;border-radius:0 80% 0 80%;background:#ff922b}
+#splash .fx-leaf i:nth-child(2n){background:#e8590c}
+#splash .fx-star i{width:8px;height:8px;border-radius:50%;background:#ffe066;box-shadow:0 0 8px #ffe066;animation-name:sptw}
+#splash .fx-rain i{width:3px;height:18px;border-radius:2px;background:#74c0fc;opacity:.7}
+#splash .fx-bean i{width:12px;height:10px;border-radius:50%;background:#e8c07d}
+#splash .fx-star i:nth-child(odd){top:12vh}#splash .fx-star i:nth-child(3n){top:30vh}#splash .fx-star i:nth-child(4n){top:6vh}
+@keyframes spfall{to{transform:translateY(115vh) rotate(540deg)}}
+@keyframes sptw{0%,100%{opacity:.2;transform:scale(.6)}50%{opacity:1;transform:scale(1.2)}}
+@media (prefers-reduced-motion: reduce){#splash .fx{display:none}#splash *{animation-duration:.01s!important}}
+
 /* しゃしん */
 .ph{width:100%;height:100%;object-fit:cover;border-radius:18%;display:block;pointer-events:none;-webkit-user-drag:none}
 #oku .piece .ph,#oku .ghost .ph{border-radius:50%}
@@ -316,6 +347,7 @@ body.naka #lines{z-index:1}
 </head>
 <body>
 
+<div id="splash" hidden></div>
 <div id="scene" aria-hidden="true">
 <svg viewBox="0 0 1200 800" preserveAspectRatio="xMidYMax slice">
   <defs>
@@ -1534,7 +1566,114 @@ $('#soundBtn').addEventListener('click',()=>{soundOn=!soundOn;save('snd',soundOn
 
 window.addEventListener('resize',sizeCards);
 window.addEventListener('orientationchange',()=>setTimeout(sizeCards,300));
-nextDino(); newRound();
+
+/* ===== スプラッシュ（季節・行事で自動切りかえ） =====
+   端末の日付で選ぶ。ためしたい時は アドレスの最後に ?season=halloween のように付ける */
+const SPF=`<g fill="#ff8fa3" opacity=".6"><ellipse cx="72" cy="112" rx="7" ry="4.5"/><ellipse cx="128" cy="112" rx="7" ry="4.5"/></g>`;
+const SPEYES=(y=100,dx=14)=>`<circle cx="${100-dx}" cy="${y}" r="5" fill="#2b2b3d"/><circle cx="${100+dx}" cy="${y}" r="5" fill="#2b2b3d"/><circle cx="${101-dx}" cy="${y-2}" r="1.6" fill="#fff"/><circle cx="${101+dx}" cy="${y-2}" r="1.6" fill="#fff"/>`;
+const sakura=(cx,cy,r,c='#ffb7c5')=>`<g transform="translate(${cx} ${cy})">${[0,72,144,216,288].map(a=>`<path transform="rotate(${a})" d="M0 0C${-r*.55} ${-r*.35} ${-r*.5} ${-r*.95} ${-r*.12} ${-r}L0 ${-r*.82}L${r*.12} ${-r}C${r*.5} ${-r*.95} ${r*.55} ${-r*.35} 0 0z" fill="${c}"/>`).join('')}<circle r="${r*.18}" fill="#ffe066"/></g>`;
+const SEASONS=[
+ {id:'newyear',from:[1,1],to:[1,7],text:'あけまして おめでとう',bg:['#fff3bf','#ffd8a8'],fx:'none',art:`
+   <rect x="40" y="150" width="120" height="22" rx="4" fill="#e03131"/><rect x="52" y="172" width="96" height="10" fill="#c92a2a"/>
+   <ellipse cx="100" cy="132" rx="62" ry="24" fill="#fff" stroke="#e9ecef" stroke-width="3"/>
+   <ellipse cx="100" cy="100" rx="48" ry="21" fill="#fff" stroke="#e9ecef" stroke-width="3"/>
+   <circle cx="100" cy="70" r="17" fill="#ff922b"/><path d="M100 54c8-10 20-8 22-4-8 6-16 8-22 4z" fill="#40c057"/>
+   ${SPEYES(126,16).replace(/r="5"/g,'r="4"')}<path d="M92 136q8 7 16 0" stroke="#2b2b3d" stroke-width="3" fill="none" stroke-linecap="round"/>`},
+ {id:'setsubun',from:[2,1],to:[2,3],text:'おにはそと ふくはうち',bg:['#fff4e6','#ffc9c9'],fx:'bean',art:`
+   <polygon points="66,62 74,28 86,60" fill="#ffd43b"/><polygon points="114,60 126,28 134,62" fill="#ffd43b"/>
+   <circle cx="100" cy="105" r="52" fill="#ff6b6b"/>
+   <path d="M52 92c6-30 30-40 48-40s42 10 48 40c-10-12-20-14-26-10-6-10-16-10-22-4-6-6-16-6-22 4-6-4-16-2-26 10z" fill="#5c3d2e"/>
+   ${SPEYES(108,18)}${SPF.replace(/112/g,'124')}
+   <path d="M80 128q20 18 40 0z" fill="#fff"/><polygon points="86,128 90,138 94,128" fill="#fff"/><polygon points="106,128 110,138 114,128" fill="#fff"/>
+   <path d="M80 128q20 18 40 0" stroke="#c92a2a" stroke-width="3" fill="none"/>`},
+ {id:'hina',from:[3,1],to:[3,3],text:'ひなまつり',bg:['#fff0f6','#ffdeeb'],fx:'petal',art:`
+   <rect x="20" y="160" width="160" height="14" rx="3" fill="#e03131"/>
+   <path d="M30 160l25-70 25 70z" fill="#364fc7"/><circle cx="55" cy="82" r="18" fill="#fff4e6"/><rect x="46" y="54" width="18" height="16" rx="3" fill="#212529"/>
+   ${'<circle cx="49" cy="84" r="2.5" fill="#2b2b3d"/><circle cx="61" cy="84" r="2.5" fill="#2b2b3d"/>'}<path d="M51 91q4 3 8 0" stroke="#e8590c" stroke-width="2" fill="none"/>
+   <path d="M120 160l25-70 25 70z" fill="#e64980"/><path d="M128 160l17-48 17 48z" fill="#ffd43b" opacity=".7"/><circle cx="145" cy="82" r="18" fill="#fff4e6"/>
+   <path d="M128 70q17-16 34 0l-4-10-6 6-7-9-7 9-6-6z" fill="#fcc419"/>
+   <circle cx="139" cy="84" r="2.5" fill="#2b2b3d"/><circle cx="151" cy="84" r="2.5" fill="#2b2b3d"/><path d="M141 91q4 3 8 0" stroke="#e8590c" stroke-width="2" fill="none"/>
+   ${sakura(100,48,16,'#ffc9de')}`},
+ {id:'spring',from:[3,4],to:[4,24],text:'はるだよ',bg:['#fff0f6','#d3f9d8'],fx:'petal',art:`
+   ${sakura(100,100,62)}${sakura(42,50,20)}${sakura(162,158,24)}
+   <g transform="translate(0 -6)">${SPEYES(104,13)}<path d="M92 114q8 8 16 0" stroke="#2b2b3d" stroke-width="3" fill="none" stroke-linecap="round"/></g>`},
+ {id:'kodomo',from:[4,25],to:[5,5],text:'こどもの ひ',bg:['#e7f5ff','#d0ebff'],fx:'none',art:`
+   <rect x="24" y="20" width="7" height="170" rx="3" fill="#8b5a3c"/><circle cx="27.5" cy="18" r="8" fill="#ffd43b"/>
+   ${[[40,'#343a40',70],[78,'#e03131',62],[114,'#1c7ed6',54]].map(([y,c,w])=>`<g transform="translate(31 ${y})"><path d="M0 0H${w+70}l-18 16 18 16H0z" fill="${c}"/>
+     <path d="M30 6q8 10 0 20M48 6q8 10 0 20M66 6q8 10 0 20" stroke="#fff" stroke-width="3" fill="none" opacity=".5"/>
+     <circle cx="14" cy="14" r="8" fill="#fff"/><circle cx="15" cy="14" r="4" fill="#2b2b3d"/></g>`).join('')}`},
+ {id:'tsuyu',from:[6,1],to:[6,30],text:'あめの ひ',bg:['#e7f5ff','#e5dbff'],fx:'rain',art:`
+   <path d="M100 120l-40 40" stroke="#40c057" stroke-width="6" stroke-linecap="round"/><ellipse cx="70" cy="150" rx="26" ry="12" fill="#40c057" transform="rotate(-30 70 150)"/>
+   ${[[100,70],[80,82],[120,82],[90,100],[112,100],[70,104],[130,104],[100,116],[84,64],[116,64]].map(([x,y],i)=>`<circle cx="${x}" cy="${y}" r="16" fill="${['#748ffc','#9775fa','#4dabf7'][i%3]}"/><circle cx="${x}" cy="${y}" r="3" fill="#fff" opacity=".7"/>`).join('')}
+   <g transform="translate(128 140)"><ellipse cx="10" cy="26" rx="34" ry="10" fill="#ffd8a8"/><circle cx="14" cy="10" r="18" fill="#e8a87c"/><path d="M14 10m-10 0a10 10 0 1 0 10-10" stroke="#b8622a" stroke-width="3" fill="none"/>
+   <path d="M36 22l8-18M44 22l12-14" stroke="#e8a87c" stroke-width="3" stroke-linecap="round"/><circle cx="44" cy="4" r="3" fill="#2b2b3d"/><circle cx="56" cy="8" r="3" fill="#2b2b3d"/></g>`},
+ {id:'tanabata',from:[7,1],to:[7,7],text:'たなばた',bg:['#364fc7','#1c1f4a'],dark:true,fx:'star',art:`
+   <path d="M100 196V20" stroke="#69db7c" stroke-width="7" stroke-linecap="round"/>
+   ${[[100,50,-1],[100,90,1],[100,130,-1],[100,160,1]].map(([x,y,s])=>`<path d="M${x} ${y}q${s*30} -6 ${s*56} 10" stroke="#51cf66" stroke-width="4" fill="none"/><ellipse cx="${x+s*44}" cy="${y+4}" rx="14" ry="5" fill="#69db7c" transform="rotate(${s*20} ${x+s*44} ${y+4})"/>`).join('')}
+   ${[[64,58,'#ff6b6b'],[140,96,'#ffd43b'],[66,136,'#74c0fc'],[138,166,'#f783ac']].map(([x,y,c])=>`<rect x="${x-7}" y="${y}" width="14" height="30" rx="2" fill="${c}"/>`).join('')}
+   <polygon points="160,22 164,34 177,34 167,42 171,54 160,47 149,54 153,42 143,34 156,34" fill="#ffe066"/>`},
+ {id:'summer',from:[7,8],to:[8,31],text:'なつだよ',bg:['#fff9db','#c5f6fa'],fx:'none',art:`
+   <circle cx="150" cy="46" r="26" fill="#ffd43b"/>${[0,45,90,135,180,225,270,315].map(a=>`<rect x="148" y="8" width="4" height="10" rx="2" fill="#ffd43b" transform="rotate(${a} 150 46)"/>`).join('')}
+   <path d="M30 120a70 70 0 0 0 140 0z" fill="#2f9e44"/><path d="M38 120a62 62 0 0 0 124 0z" fill="#d3f9d8"/><path d="M44 120a56 56 0 0 0 112 0z" fill="#ff6b6b"/>
+   ${[[70,132],[90,146],[110,146],[130,132],[100,130]].map(([x,y])=>`<ellipse cx="${x}" cy="${y}" rx="3" ry="5" fill="#2b2b3d"/>`).join('')}`},
+ {id:'tsukimi',from:[9,10],to:[9,30],text:'おつきみ',bg:['#1c1f4a','#364fc7'],dark:true,fx:'star',art:`
+   <circle cx="110" cy="80" r="56" fill="#ffe066"/><circle cx="92" cy="66" r="8" fill="#fcc419" opacity=".6"/><circle cx="128" cy="96" r="11" fill="#fcc419" opacity=".5"/>
+   <g fill="#fff"><ellipse cx="54" cy="160" rx="24" ry="18"/><circle cx="66" cy="140" r="13"/><ellipse cx="62" cy="118" rx="4.5" ry="16" transform="rotate(-10 62 118)"/><ellipse cx="72" cy="118" rx="4.5" ry="16" transform="rotate(12 72 118)"/></g>
+   <circle cx="70" cy="139" r="2" fill="#2b2b3d"/>
+   <path d="M120 186h56l-6-8h-44z" fill="#e8a87c"/>${[[136,170],[160,170],[148,152],[148,170]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="10" fill="#fff" stroke="#e9ecef" stroke-width="2"/>`).join('')}`},
+ {id:'autumn',from:[10,1],to:[10,14],text:'あきだよ',bg:['#fff4e6','#ffe8cc'],fx:'leaf',art:`
+   <g transform="translate(100 96) scale(1.3)"><path d="M0 -50l10 22 18-12-4 24 22-2-16 18 14 10-24 4 4 18-24-10-24 10 4-18-24-4 14-10-16-18 22 2-4-24 18 12z" fill="#ff6b35"/><path d="M0 -30V44" stroke="#c2410c" stroke-width="3"/></g>
+   <g transform="translate(150 150)"><ellipse cx="0" cy="8" rx="16" ry="20" fill="#a0522d"/><path d="M-18 -4q18-20 36 0z" fill="#6b4226"/><rect x="-2" y="-18" width="4" height="8" fill="#6b4226"/></g>`},
+ {id:'halloween',from:[10,15],to:[10,31],text:'ハロウィン',bg:['#5f3dc4','#2b1a5e'],dark:true,fx:'star',art:`
+   <path d="M100 52c-4-14 2-24 10-28" stroke="#2f9e44" stroke-width="7" stroke-linecap="round" fill="none"/>
+   <ellipse cx="72" cy="114" rx="34" ry="54" fill="#fd7e14"/><ellipse cx="128" cy="114" rx="34" ry="54" fill="#fd7e14"/><ellipse cx="100" cy="114" rx="38" ry="58" fill="#ff922b"/>
+   <path d="M76 98l12-16 12 16zM124 98l-12-16-12 16z" fill="#3b1f0b"/><path d="M70 126q30 30 60 0l-8 4-6-6-8 8-8-8-8 8-8-8-6 6z" fill="#3b1f0b"/>
+   <g transform="translate(160 54)"><path d="M-20 30v-26a20 20 0 0 1 40 0v26l-7-6-6 6-7-6-7 6-6-6z" fill="#fff"/><circle cx="-7" cy="2" r="3" fill="#2b2b3d"/><circle cx="7" cy="2" r="3" fill="#2b2b3d"/><ellipse cx="0" cy="12" rx="4" ry="5" fill="#2b2b3d"/></g>`},
+ {id:'autumn2',from:[11,1],to:[11,30],text:'あきだよ',bg:['#fff4e6','#ffe8cc'],fx:'leaf',same:'autumn'},
+ {id:'christmas',from:[12,1],to:[12,25],text:'メリー クリスマス',bg:['#2b8a3e','#0b3d1f'],dark:true,fx:'snow',art:`
+   <rect x="90" y="160" width="20" height="24" fill="#8b5a3c"/>
+   <polygon points="100,36 150,100 128,100 164,150 36,150 72,100 50,100" fill="#40c057"/>
+   <path d="M66 96q34 14 68 0M52 140q48 18 96 0" stroke="#ffd43b" stroke-width="4" fill="none"/>
+   ${[[86,80,'#ff6b6b'],[116,90,'#74c0fc'],[78,124,'#ffd43b'],[122,128,'#ff6b6b'],[100,112,'#f783ac']].map(([x,y,c])=>`<circle cx="${x}" cy="${y}" r="6" fill="${c}"/>`).join('')}
+   <polygon points="100,18 106,32 121,32 109,41 113,55 100,47 87,55 91,41 79,32 94,32" fill="#ffe066"/>
+   <g transform="translate(146 160)"><rect x="-16" y="0" width="32" height="26" rx="3" fill="#e03131"/><rect x="-3" y="0" width="6" height="26" fill="#ffd43b"/><rect x="-18" y="-6" width="36" height="8" rx="2" fill="#c92a2a"/></g>`},
+ {id:'winter',from:[12,26],to:[2,29],text:'ふゆだよ',bg:['#e7f5ff','#d0ebff'],fx:'snow',art:`
+   <circle cx="100" cy="146" r="40" fill="#fff" stroke="#dee2e6" stroke-width="3"/><circle cx="100" cy="88" r="30" fill="#fff" stroke="#dee2e6" stroke-width="3"/>
+   <rect x="78" y="48" width="44" height="14" rx="4" fill="#e03131"/><rect x="86" y="30" width="28" height="24" rx="4" fill="#e03131"/>
+   ${SPEYES(84,10).replace(/r="5"/g,'r="4"')}<polygon points="100,92 120,96 100,100" fill="#ff922b"/>
+   <path d="M76 112q24 10 48 0" stroke="#4dabf7" stroke-width="9" stroke-linecap="round" fill="none"/>
+   <path d="M62 136l-24-18M138 136l24-18" stroke="#8b5a3c" stroke-width="5" stroke-linecap="round"/>
+   <circle cx="100" cy="136" r="4" fill="#495057"/><circle cx="100" cy="152" r="4" fill="#495057"/>`}
+];
+SEASONS.forEach(s=>{if(s.same){const o=SEASONS.find(x=>x.id===s.same);s.art=o.art}});
+function pickSeason(d){
+  try{const q=new URLSearchParams(location.search).get('season');if(q){const f=SEASONS.find(s=>s.id===q);if(f)return f;if(q==='none')return null}}catch(e){}
+  const v=(d.getMonth()+1)*100+d.getDate();
+  return SEASONS.find(s=>{const a=s.from[0]*100+s.from[1], b=s.to[0]*100+s.to[1];return a<=b?(v>=a&&v<=b):(v>=a||v<=b)})||null;
+}
+function showSplash(){
+  const el=document.getElementById('splash'); if(!el) return;
+  try{if(new URLSearchParams(location.search).has('nosplash'))return}catch(e){}
+  const s=pickSeason(new Date());
+  const tRex=DINOS[0].svg;
+  if(s){
+    el.style.setProperty('--b1',s.bg[0]); el.style.setProperty('--b2',s.bg[1]);
+    el.classList.toggle('dark',!!s.dark);
+    el.innerHTML=`<div class="fx fx-${s.fx}">${'<i></i>'.repeat(s.fx==='none'?0:18)}</div>
+      <div class="sp-art"><svg viewBox="0 0 200 200">${s.art}</svg></div>
+      <div class="sp-text">${s.text}</div><div class="sp-dino">${tRex}</div>`;
+  }else{
+    el.style.setProperty('--b1','#bfe8ff'); el.style.setProperty('--b2','#d3f9d8');
+    el.innerHTML=`<div class="sp-art big">${tRex}</div><div class="sp-text">せんむすび</div>`;
+  }
+  el.querySelectorAll('.fx i').forEach((i,n)=>{i.style.left=(n*5.5+Math.random()*4)+'%';i.style.animationDelay=(-Math.random()*3)+'s';i.style.animationDuration=(2.4+Math.random()*2)+'s'});
+  el.hidden=false;
+  const close=()=>{if(el.classList.contains('bye'))return;el.classList.add('bye');setTimeout(()=>{el.hidden=true;el.innerHTML=''},450)};
+  el.addEventListener('pointerdown',close,{once:true});
+  setTimeout(close,1800);
+}
+
+nextDino(); newRound(); showSplash();
 </script>
 </body>
 </html>
