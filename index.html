@@ -158,6 +158,28 @@ body.kt .col,body.kt #countBtn,body.kt #modeSeg{display:none}
 body.pz #pz{display:block}
 body.pz .col,body.pz #countBtn{display:none}
 body.robo #modeSeg{display:none}
+#kumiSeg{display:none}
+body.robo #kumiSeg{display:flex}
+.kumi .rp,.kumi .jaw,.kumi .spinw{transform-box:fill-box}
+.kd .kp-head{transform-origin:20% 90%}
+.kd .jaw{transform-origin:0% 0%}
+.kd .kp-tail{transform-origin:100% 50%}
+.kd.roar .kp-head{animation:kdhead 1s ease}
+.kd.roar .jaw{animation:kdjaw 1s ease}
+.kd.roar .kp-tail{animation:kdtail .5s ease-in-out 2}
+.kd.roar .kp-arm{animation:kdarm .5s ease-in-out 2}
+@keyframes kdhead{20%,70%{transform:rotate(-10deg)}}
+@keyframes kdjaw{20%,70%{transform:rotate(16deg)}}
+@keyframes kdtail{50%{transform:rotate(14deg)}}
+@keyframes kdarm{50%{transform:translateY(-6px)}}
+.kc .spinw{transform-origin:center}
+.kc.go .spinw{animation:wspin .45s linear infinite}
+.kc.go .siren{animation:blink .35s steps(2) infinite}
+@keyframes wspin{to{transform:rotate(360deg)}}
+@keyframes blink{50%{opacity:.25}}
+#pz .live.zoom svg{animation:zoomoff 2.2s ease-in-out}
+@keyframes zoomoff{0%{transform:none}10%{transform:translateX(-3%)}45%{transform:translateX(120%)}46%{transform:translateX(-120%)}100%{transform:none}}
+
 #pz .ghost.sil{filter:brightness(0);opacity:.16}
 #pz .pc.rb{background:transparent;box-shadow:none;border-radius:0;overflow:visible;filter:drop-shadow(0 6px 6px rgba(40,60,90,.3))}
 #pz .pc.rb .in{clip-path:inset(var(--clip))}
@@ -431,8 +453,14 @@ body.naka #lines{z-index:1}
     <button type="button" data-g="michi">みち</button>
     <button type="button" data-g="oku">おく</button>
     <button type="button" data-g="pz">パズル</button>
-    <button type="button" data-g="robo">ロボ</button>
+    <button type="button" data-g="robo">くみたて</button>
     <button type="button" data-g="kt">かたち</button>
+  </div>
+  <div class="seg" id="kumiSeg">
+    <button type="button" data-k="mix">まぜこぜ</button>
+    <button type="button" data-k="robo">ロボ</button>
+    <button type="button" data-k="dino">きょうりゅう</button>
+    <button type="button" data-k="car">くるま</button>
   </div>
   <div class="seg" id="modeSeg">
     <button type="button" data-m="e">え</button>
@@ -759,6 +787,7 @@ function sayName(t,lang,done){
   if(!t){const tk=++sayTok;hideSay();setTimeout(()=>{if(tk===sayTok&&done)done()},900);return}
   const tok=++sayTok; try{speechSynthesis.cancel()}catch(e){}
   sayEl.textContent=t; sayEl.classList.remove('again'); sayEl.classList.add('show');
+  sayEl.style.fontSize=Math.max(28,Math.min(110,innerWidth*.12,innerWidth*.62/Math.max(1,[...t].length)))+'px';   // 長い名前は小さく
   const ok=()=>tok===sayTok;
   const fin=()=>{if(!ok())return; setTimeout(()=>{if(ok())hideSay()},500); done&&done()};
   if(!canSpeak()){setTimeout(fin,1600);return}
@@ -819,7 +848,8 @@ function updateTop(){
   $('#gameSeg [data-g="michi"]').innerHTML='みち'+stars(michiLevel());
   $('#gameSeg [data-g="oku"]').innerHTML='おく'+stars(okuLevel());
   $('#gameSeg [data-g="pz"]').innerHTML='パズル'+stars(pzLevel());
-  $('#gameSeg [data-g="robo"]').innerHTML='ロボ'+stars(roboLevel());
+  $('#gameSeg [data-g="robo"]').innerHTML='くみたて'+stars(roboLevel());
+  document.querySelectorAll('#kumiSeg button').forEach(b=>b.classList.toggle('on',b.dataset.k===kumiSel));
   $('#gameSeg [data-g="kt"]').innerHTML='かたち'+stars(ktLevel());
   $('#modeSeg [data-m="kazu"]').innerHTML='123'+(game==='yoko'?stars(level('kazu')):'');
   $('#modeSeg [data-m="abc"]').innerHTML='ABC'+(game==='yoko'?stars(level('abc')):'');
@@ -849,7 +879,7 @@ function newRound(){
     leftCol.innerHTML=''; rightCol.innerHTML=''; roadSvg.innerHTML=''; R=null;
     if(game==='robo'){dinoEl.className='';dinoEl.innerHTML=''}      // ロボはロボ自身がごほうび
     else{dinoEl.className='hint'; dinoEl.innerHTML=dino.svg; dinoEl.style.setProperty('--p','.06')}
-    updateTop(); pzRound(game==='robo'?roboSpec():gridSpec()); return;
+    updateTop(); pzRound(game==='robo'?kumiSpec():gridSpec()); return;
   }
   if(game==='oku'){
     leftCol.innerHTML=''; rightCol.innerHTML=''; roadSvg.innerHTML=''; R=null;
@@ -891,7 +921,7 @@ function clearHover(){document.querySelectorAll('.card.hover').forEach(c=>c.clas
 
 board.addEventListener('pointerdown',e=>{
   if(!won) hideSay();
-  if(game==='robo'&&e.target.closest('#pz .live')){roboToggle();return}
+  if(game==='robo'&&e.target.closest('#pz .live')){kumiTap();return}
   if(game==='michi'){michiDown(e);return}
   if(game==='naka'){nakaDown(e);return}
   if(game==='oku'){okuDown(e);return}
@@ -1205,7 +1235,9 @@ function pzLayout(){
     pcCrop(p);
     const sl=p.slot;
     if(pd&&pd.p===p) return;
-    if(p.placed) pzSet(p,sl.x,sl.y,1); else pzSet(p,p.home.x,p.home.y,PZ.sc);
+    // 小さいパーツはトレイで小さくなりすぎないように（指でつかめる大きさを確保）
+    p.sc=Math.min(1,Math.max(PZ.sc,64/Math.max(sl.w,sl.h)));
+    if(p.placed) pzSet(p,sl.x,sl.y,1); else pzSet(p,p.home.x,p.home.y,p.sc);
   });
 }
 function pcCrop(p){   // ピースに、担当する場所の部分の絵を表示する
@@ -1223,7 +1255,7 @@ function pzDown(e){
   const p=PZ.pieces.find(q=>q.el===el); if(!p||p.placed) return;
   e.preventDefault(); ac(); tick();
   const q=lp(e);
-  pd={p,id:e.pointerId,off:{x:(q.x-p.at.x)/PZ.sc,y:(q.y-p.at.y)/PZ.sc}};   // 拡大しても指の下の場所がずれないように
+  pd={p,id:e.pointerId,off:{x:(q.x-p.at.x)/p.sc,y:(q.y-p.at.y)/p.sc}};   // 拡大しても指の下の場所がずれないように
   el.classList.remove('back','snap'); el.classList.add('drag'); el.style.removeProperty('--sc');
   pzSet(p,q.x-pd.off.x,q.y-pd.off.y);
 }
@@ -1258,7 +1290,7 @@ function pzPlace(p){
   if(!PZ.spec.robo) dinoEl.style.setProperty('--p',(.06+.3*PZ.done/PZ.n).toFixed(3));
   if(PZ.done===PZ.n){
     won=true;
-    if(PZ.spec.robo) setTimeout(roboFinish,350);
+    if(PZ.spec.robo) setTimeout(kumiFinish,350);
     else setTimeout(()=>{pzEl.classList.add('whole');sayName(PZ.spec.say,PZ.spec.lang,win)},350);
   }
 }
@@ -1266,7 +1298,7 @@ function pzUp(e){
   if(e.pointerId!==pd.id) return;
   const p=pd.p; pd=null; PZ.slots.forEach(s2=>{if(s2.el)s2.el.classList.remove('near')});
   p.el.classList.remove('drag'); p.el.classList.add('back');
-  pzSet(p,p.home.x,p.home.y,PZ.sc);
+  pzSet(p,p.home.x,p.home.y,p.sc);
   setTimeout(()=>p.el.classList.remove('back'),380);
 }
 
@@ -1320,28 +1352,98 @@ const ROBO_SETS={1:[['head'],['torso','larm','rarm'],['lleg','rleg']],
    シルエットが見本。★1・★2はパーツの場所に点線のわくもあり */
 const ROBO_LV=[0,10,20];
 function roboLevel(){let lv=1;ROBO_LV.forEach((v,i)=>{if(clears.robo>=v)lv=i+1});return lv}
-let roboBag=[];
-function roboSpec(){
+/* ===== ブロックきょうりゅう（オリジナル） ===== */
+const KDINO_VARIANTS=[
+  {n:'みどりザウルス',  main:'#5cb85c',sub:'#3d8a3d',lite:'#d4efb0',acc:'#ffb347'},
+  {n:'あおザウルス',    main:'#4dabf7',sub:'#1971c2',lite:'#d0ebff',acc:'#ffd43b'},
+  {n:'オレンジザウルス',main:'#ff922b',sub:'#d9480f',lite:'#ffe8cc',acc:'#69db7c'},
+  {n:'むらさきザウルス',main:'#9775fa',sub:'#6741d9',lite:'#e5dbff',acc:'#ffd43b'}
+];
+function kdinoSvg(v){
+  const plates=[112,134,156,178].map(x=>`<rect x="${x}" y="101" width="16" height="11" rx="3" fill="${v.acc}"/>`).join('');
+  const leg=(x,cls)=>`<g class="rp ${cls}">${brick(x+10,192,36,60,v.sub,false)}${brick(x+4,250,48,22,v.sub,false)}<rect x="${x+8}" y="266" width="8" height="6" rx="2" fill="#fff" opacity=".8"/><rect x="${x+22}" y="266" width="8" height="6" rx="2" fill="#fff" opacity=".8"/><rect x="${x+36}" y="266" width="8" height="6" rx="2" fill="#fff" opacity=".8"/></g>`;
+  return `<svg viewBox="0 0 300 300" class="kumi kd">
+    ${leg(100,'kp-bleg')}${leg(160,'kp-fleg')}
+    <g class="rp kp-tail">${brick(52,124,43,32,v.main,false)}${brick(20,140,36,20,v.main,false)}<rect x="60" y="130" width="8" height="8" rx="2" fill="${v.acc}"/><rect x="28" y="144" width="7" height="7" rx="2" fill="${v.acc}"/></g>
+    <g class="rp kp-body"><rect x="186" y="100" width="24" height="14" rx="3" fill="${v.main}"/>${plates}${brick(98,110,114,80,v.main,false)}<rect x="122" y="140" width="72" height="38" rx="10" fill="${v.lite}"/>
+      <path d="M134 150h48M134 162h48" stroke="${v.main}" stroke-width="3" opacity=".35" stroke-linecap="round"/></g>
+    <g class="rp kp-arm">${brick(216,130,28,16,v.main,false)}<rect x="236" y="144" width="9" height="12" rx="3" fill="${v.sub}"/></g>
+    <g class="rp kp-head">
+      ${brick(182,34,98,40,v.main,true)}
+      <g class="jaw">${brick(186,74,90,22,v.main,false)}<g fill="#fff"><polygon points="196,74 202,84 208,74"/><polygon points="214,74 220,84 226,74"/><polygon points="232,74 238,84 244,74"/><polygon points="250,74 256,84 262,74"/></g></g>
+      <circle cx="212" cy="52" r="10" fill="#fff"/><circle cx="215" cy="54" r="6" fill="#2b2b3d"/><circle cx="217" cy="51" r="2" fill="#fff"/>
+      <circle cx="268" cy="46" r="3" fill="${v.sub}"/><ellipse cx="236" cy="64" rx="8" ry="4.5" fill="#ff8fa3" opacity=".7"/>
+    </g></svg>`;
+}
+const KDINO_RECTS={head:[175,22,110,78],body:[95,100,120,92],tail:[15,100,80,70],arm:[215,125,34,45],bleg:[100,192,55,88],fleg:[160,192,55,88]};
+const KDINO_GROUP={bleg:'leg',fleg:'leg'};
+const KDINO_SETS={1:[['head'],['body','arm','tail'],['bleg','fleg']],
+                  2:[['head'],['body','arm'],['tail'],['bleg'],['fleg']],
+                  3:[['head'],['body'],['tail'],['arm'],['bleg'],['fleg']]};
+
+/* ===== ブロックくるま（オリジナル） ===== */
+const KCAR_VARIANTS=[
+  {n:'パトカー',     main:'#f8f9fa',low:'#212529',roof:'#343a40',acc:'#adb5bd',top:'siren'},
+  {n:'しょうぼうしゃ',main:'#e03131',low:'#c92a2a',roof:'#c92a2a',acc:'#ced4da',top:'ladder'},
+  {n:'タクシー',     main:'#ffd43b',low:'#f59f00',roof:'#f59f00',acc:'#ced4da',top:'taxi'},
+  {n:'レースカー',   main:'#1c7ed6',low:'#1864ab',roof:'#1864ab',acc:'#ffd43b',top:'race'}
+];
+function kcarSvg(v){
+  const wheel=(cx,cls)=>`<g class="rp ${cls}"><circle cx="${cx}" cy="205" r="30" fill="#26293a"/><g class="spinw"><circle cx="${cx}" cy="205" r="15" fill="#ced4da"/>
+     <path d="M${cx} 192v26M${cx-13} 205h26" stroke="#868e96" stroke-width="4" stroke-linecap="round"/><circle cx="${cx}" cy="205" r="5" fill="#495057"/></g></g>`;
+  const tops={
+    siren:`<g class="siren"><rect x="138" y="28" width="20" height="14" rx="4" fill="#ff3b3b"/><rect x="162" y="28" width="20" height="14" rx="4" fill="#3b82ff"/></g>`,
+    ladder:`<rect x="112" y="30" width="96" height="12" rx="3" fill="#ced4da"/>${[124,140,156,172,188].map(x=>`<rect x="${x}" y="30" width="5" height="12" fill="#868e96"/>`).join('')}<g class="siren"><rect x="190" y="26" width="18" height="6" rx="3" fill="#ff3b3b"/></g>`,
+    taxi:`<rect x="136" y="26" width="48" height="18" rx="5" fill="#fff"/><text x="160" y="40" text-anchor="middle" font-size="12" font-weight="800" fill="#f59f00" font-family="sans-serif">TAXI</text>`,
+    race:`<rect x="100" y="34" width="20" height="10" rx="3" fill="${v.acc}"/>`
+  };
+  const body=v.top==='siren'
+    ? `${brick(34,110,214,56,v.main,false)}<rect x="34" y="140" width="214" height="26" rx="6" fill="${v.low}"/>`
+    : `${brick(34,110,214,56,v.main,false)}`;
+  const deco=v.top==='race'?`<circle cx="140" cy="136" r="15" fill="#fff"/><text x="140" y="142" text-anchor="middle" font-size="17" font-weight="800" fill="${v.main}" font-family="sans-serif">1</text><rect x="34" y="118" width="214" height="6" fill="${v.acc}"/>`
+           : v.top==='ladder'?`<rect x="56" y="122" width="40" height="22" rx="4" fill="#ffd43b"/><rect x="62" y="128" width="28" height="10" rx="2" fill="#e03131"/>`:'';
+  return `<svg viewBox="0 0 300 300" class="kumi kc">
+    ${wheel(95,'kp-bw')}${wheel(215,'kp-fw')}
+    <g class="rp kp-body">${body}${deco}<path d="M150 116v44" stroke="#000" stroke-width="2" opacity=".15"/><rect x="160" y="126" width="16" height="5" rx="2" fill="#000" opacity=".25"/>
+      <rect x="34" y="122" width="10" height="14" rx="3" fill="#ff6b6b"/></g>
+    <g class="rp kp-bump">${brick(248,118,30,40,v.acc,false)}<circle cx="268" cy="132" r="7" fill="#ffe066"/><circle cx="268" cy="132" r="3" fill="#fff"/></g>
+    <g class="rp kp-cabin">${brick(102,66,116,40,v.main,false)}<rect x="112" y="72" width="40" height="26" rx="5" fill="#a5d8ff"/><rect x="160" y="72" width="48" height="26" rx="5" fill="#a5d8ff"/>
+      <circle cx="186" cy="86" r="10" fill="#ffd8a8"/><circle cx="183" cy="84" r="1.8" fill="#2b2b3d"/><circle cx="190" cy="84" r="1.8" fill="#2b2b3d"/><path d="M182 89q4 4 8 0" stroke="#2b2b3d" stroke-width="1.6" fill="none"/>
+      <path d="M118 76l10 0" stroke="#fff" stroke-width="3" opacity=".7" stroke-linecap="round"/></g>
+    <g class="rp kp-roof">${brick(108,48,104,16,v.roof,true)}${tops[v.top]}</g></svg>`;
+}
+const KCAR_RECTS={roof:[95,22,130,42],cabin:[95,64,130,40],body:[30,104,218,64],bump:[248,104,40,64],bw:[55,168,80,80],fw:[175,168,80,80]};
+const KCAR_GROUP={bw:'wheel',fw:'wheel'};
+const KCAR_SETS={1:[['roof','cabin'],['body','bump'],['bw','fw']],
+                 2:[['roof','cabin'],['body'],['bump'],['bw'],['fw']],
+                 3:[['roof'],['cabin'],['body'],['bump'],['bw'],['fw']]};
+
+/* くみたて: ロボ・きょうりゅう・くるま。★1 3パーツ / ★2 5パーツ / ★3 6パーツ
+   シルエットが見本。★1・★2はパーツの場所に点線のわくもあり */
+const KUMI={
+  robo:{rects:ROBO_RECTS,sets:ROBO_SETS,group:ROBO_GROUP,vars:ROBO_VARIANTS,svg:roboSvg},
+  dino:{rects:KDINO_RECTS,sets:KDINO_SETS,group:KDINO_GROUP,vars:KDINO_VARIANTS,svg:kdinoSvg},
+  car:{rects:KCAR_RECTS,sets:KCAR_SETS,group:KCAR_GROUP,vars:KCAR_VARIANTS,svg:kcarSvg}
+};
+let kumiSel=load('kumi','mix'); if(kumiSel!=='mix'&&!KUMI[kumiSel]) kumiSel='mix';
+const kumiBags={}; let kindBag=[];
+function kumiSpec(){
   const lv=roboLevel();
-  if(!roboBag.length) roboBag=shuffle(ROBO_VARIANTS);
-  const v=roboBag.shift();
-  const rects=ROBO_SETS[lv].map(set=>{
-    const rs=set.map(k=>ROBO_RECTS[k]);
+  let kind=kumiSel;
+  if(kind==='mix'){ if(!kindBag.length) kindBag=shuffle(Object.keys(KUMI)); kind=kindBag.shift() }
+  const K=KUMI[kind];
+  if(!kumiBags[kind]||!kumiBags[kind].length) kumiBags[kind]=shuffle(K.vars);
+  const v=kumiBags[kind].shift();
+  const rects=K.sets[lv].map(set=>{
+    const rs=set.map(k=>K.rects[k]);
     const x0=Math.min(...rs.map(r=>r[0])), y0=Math.min(...rs.map(r=>r[1]));
     const x1=Math.max(...rs.map(r=>r[0]+r[2])), y1=Math.max(...rs.map(r=>r[1]+r[3]));
     return [x0,y0,x1-x0,y1-y0];
   });
-  const groups=ROBO_SETS[lv].map(set=>set.length===1?ROBO_GROUP[set[0]]||null:null);
-  return{svg:roboSvg(v),IW:300,IH:300,rects,groups,ghost:1,sil:true,outlines:lv<3,robo:v,say:v.n};
+  const groups=K.sets[lv].map(set=>set.length===1?K.group[set[0]]||null:null);
+  return{svg:K.svg(v),IW:300,IH:300,rects,groups,ghost:1,sil:true,outlines:lv<3,robo:v,kind,say:v.n};
 }
-function sfxTransform(toCar){
-  const b=toCar?1:1.25;
-  tone(260*b,0,.28,'sawtooth',.06,520*b);
-  [.3,.42,.54].forEach((t,i)=>tone(950-i*120,t,.05,'square',.07));
-  tone(toCar?392:523,.7,.18,'triangle',.18); tone(toCar?523:392,.86,.25,'triangle',.18);
-}
-function sfxCar(){tone(85,0,.6,'sawtooth',.07,140);tone(523,.7,.14,'square',.08);tone(523,.9,.25,'square',.08)}
-function roboFinish(){
+function kumiFinish(){
   PZ.finished=true;
   const live=document.createElement('div'); live.className='live'; live.innerHTML=PZ.spec.svg;
   PZ.pieces.forEach(p=>p.el.remove()); PZ.frame.querySelectorAll('.slotz,.ghost').forEach(e=>e.remove());
@@ -1349,8 +1451,27 @@ function roboFinish(){
   pzLayout(); fanfare(); confetti();
   clears.robo++; save('roboN',clears.robo);
   sayName(PZ.spec.say,'ja-JP',()=>{
-    setTimeout(()=>{roboToggle(true);$('#next').classList.add('show')},300);
+    setTimeout(()=>{kumiTap(true);$('#next').classList.add('show')},300);
   });
+}
+function kumiTap(auto){   // できあがったものをタップすると動く
+  if(!PZ||!PZ.live) return;
+  if(PZ.spec.kind==='robo') return roboToggle(auto);
+  ac();
+  const svg=PZ.live.querySelector('svg'), live=PZ.live;
+  if(PZ.spec.kind==='dino'){
+    svg.classList.remove('roar'); live.classList.remove('jolt'); void live.offsetWidth;
+    svg.classList.add('roar'); live.classList.add('jolt'); roar();
+    if(!auto) setTimeout(()=>utter('ガオー！'),150);
+  }else{
+    if(svg.classList.contains('go')) return;
+    svg.classList.add('go'); live.classList.remove('zoom'); void live.offsetWidth; live.classList.add('zoom');
+    sfxCar();
+    if(PZ.spec.robo.top==='siren'){ [0,.5,1,1.5].forEach((t,i)=>tone(i%2?700:950,t,.45,'triangle',.12)) }
+    else if(PZ.spec.robo.top==='ladder'){ tone(500,0,1.6,'sawtooth',.06,900) }
+    if(!auto) setTimeout(()=>utter('ブーブー！'),300);
+    setTimeout(()=>{svg.classList.remove('go');live.classList.remove('zoom')},2300);
+  }
 }
 function roboToggle(auto){
   if(!PZ||!PZ.live) return;
@@ -1363,6 +1484,13 @@ function roboToggle(auto){
   if(!auto&&!toCar) setTimeout(()=>utter('ロボット！'),900);
   if(!auto&&toCar) setTimeout(()=>utter('ブーブー！'),1700);
 }
+function sfxTransform(toCar){
+  const b=toCar?1:1.25;
+  tone(260*b,0,.28,'sawtooth',.06,520*b);
+  [.3,.42,.54].forEach((t,i)=>tone(950-i*120,t,.05,'square',.07));
+  tone(toCar?392:523,.7,.18,'triangle',.18); tone(toCar?523:392,.86,.25,'triangle',.18);
+}
+function sfxCar(){tone(85,0,.6,'sawtooth',.07,140);tone(523,.7,.14,'square',.08);tone(523,.9,.25,'square',.08)}
 
 /* ===== かたち（回るボールの穴に、同じ形のブロックを入れる） ===== */
 const ktEl=$('#kt');
@@ -1784,6 +1912,9 @@ document.querySelectorAll('#modeSeg button').forEach(b=>b.addEventListener('clic
     return;
   }
   mode=b.dataset.m; save('mode',mode); ac(); tick(); newRound();
+}));
+document.querySelectorAll('#kumiSeg button').forEach(b=>b.addEventListener('click',()=>{
+  kumiSel=b.dataset.k; save('kumi',kumiSel); kindBag=[]; ac(); tick(); newRound();
 }));
 $('#countBtn').addEventListener('click',()=>{pairCount=pairCount>=5?2:pairCount+1;save('n',pairCount);newRound()});
 $('#voiceBtn').addEventListener('click',()=>{voiceOn=!voiceOn;save('voice',voiceOn);updateTop();if(!voiceOn){try{speechSynthesis.cancel()}catch(e){}}else{ac();utter('こえ')}});
