@@ -137,6 +137,22 @@ body.michi .col,body.michi #countBtn,body.michi #modeSeg{display:none}
 body.naka #naka{display:block}
 body.naka .col,body.naka #countBtn{display:none}
 
+/* ぬりえ */
+#nuri{position:absolute;inset:0;display:none}
+body.nuri #nuri{display:block}
+body.nuri .col,body.nuri #countBtn,body.nuri #modeSeg{display:none}
+#nuri .paper{position:absolute;background:#fff;border-radius:22px;box-shadow:0 8px 0 rgba(40,60,90,.18);border:6px solid #fff}
+#nuri .paper > svg{width:100%;height:100%;display:block;overflow:visible}
+#nuri .paper [data-r]{transition:fill .12s linear}
+#nuri .paper.done{animation:yay .7s ease}
+#nuri .tray{position:absolute;background:rgba(255,255,255,.55);border:4px dashed rgba(255,255,255,.95);border-radius:26px}
+#nuri .pot{position:absolute;border-radius:50%;background:var(--c);border:5px solid #fff;
+  box-shadow:inset 0 -7px 0 rgba(0,0,0,.18),0 5px 0 rgba(40,60,90,.2);transition:transform .15s}
+#nuri .pot.on{transform:translateY(-8px) scale(1.15);box-shadow:inset 0 -7px 0 rgba(0,0,0,.18),0 0 0 5px #ffd23f,0 10px 0 rgba(40,60,90,.2)}
+#nuri .brush{position:absolute;width:74px;height:74px;pointer-events:none;z-index:20;display:none;transform:translate(-8px,-66px)}
+#nuri .brush.show{display:block}
+#nuri .brush svg{width:100%;height:100%;display:block}
+
 /* かたち（回るボール） */
 #kt{position:absolute;inset:0;display:none}
 body.kt #kt{display:block}
@@ -282,7 +298,8 @@ body.naka #lines{z-index:1}
   #top{gap:4px;max-width:calc(100vw - 8px)}
   .seg{padding:3px;gap:0}
   .seg button,#top > button{font-size:13px;padding:5px 7px}
-  #gameSeg button{font-size:12px;padding:5px 4.5px;letter-spacing:-.02em}
+  #gameSeg{display:grid;grid-template-columns:repeat(4,auto);justify-content:center}   /* スマホは 4つずつ2だん */
+  #gameSeg button{font-size:13px;padding:5px 7px}
   .seg sup{font-size:7px;margin-left:1px}
 }
 /* スプラッシュ */
@@ -443,7 +460,7 @@ body.naka #lines{z-index:1}
 </div>
 
 <div id="dino" aria-hidden="true"></div>
-<div id="board"><div class="col left" id="leftCol"></div><div class="col right" id="rightCol"></div><svg id="road"></svg><div id="naka"></div><div id="oku"></div><div id="pz"></div><div id="kt"></div></div>
+<div id="board"><div class="col left" id="leftCol"></div><div class="col right" id="rightCol"></div><svg id="road"></svg><div id="naka"></div><div id="oku"></div><div id="pz"></div><div id="kt"></div><div id="nuri"></div></div>
 <svg id="lines"><g id="linesG"></g></svg>
 
 <div id="top">
@@ -455,6 +472,7 @@ body.naka #lines{z-index:1}
     <button type="button" data-g="pz">パズル</button>
     <button type="button" data-g="robo">くみたて</button>
     <button type="button" data-g="kt">かたち</button>
+    <button type="button" data-g="nuri">ぬりえ</button>
   </div>
   <div class="seg" id="kumiSeg">
     <button type="button" data-k="mix">まぜこぜ</button>
@@ -706,9 +724,9 @@ const board=$('#board'), leftCol=$('#leftCol'), rightCol=$('#rightCol'), linesG=
 function load(k,d){try{const v=localStorage.getItem('senmusubi_'+k);return v==null?d:JSON.parse(v)}catch(e){return d}}
 function save(k,v){try{localStorage.setItem('senmusubi_'+k,JSON.stringify(v))}catch(e){}}
 let pairCount=load('n',3), soundOn=load('snd',true), voiceOn=load('voice',true), mode=load('mode','e'), game=load('game',null),
-    clears={kazu:load('kazuN',0),abc:load('abcN',0),naka:load('nakaN',0),oku:load('okuN',0),pz:load('pzN',0),robo:load('roboN',0),kt:load('ktN',0)};
+    clears={kazu:load('kazuN',0),abc:load('abcN',0),naka:load('nakaN',0),oku:load('okuN',0),pz:load('pzN',0),robo:load('roboN',0),kt:load('ktN',0),nuri:load('nuriN',0)};
 if(mode==='michi'){game=game||'michi';mode='e'}
-if(!['yoko','naka','michi','oku','pz','robo','kt'].includes(game)) game='yoko';
+if(!['yoko','naka','michi','oku','pz','robo','kt','nuri'].includes(game)) game='yoko';
 if(!MODES[mode]) mode='e';
 const stars=n=>'<sup>★'+n+'</sup>';   // レベル表示（★2 のように短く）
 function fitBoard(){board.style.top=($('#top').getBoundingClientRect().bottom+8)+'px'}
@@ -836,6 +854,7 @@ function sizeCards(){
   if(game==='oku'){okuLayout();return}
   if(game==='pz'||game==='robo'){pzLayout();return}
   if(game==='kt'){ktLayout();return}
+  if(game==='nuri'){nuriLayout();return}
   if(game==='michi'){ if(R && !md && !R.done && (Math.abs(w-R.W)>40||Math.abs(h-R.H)>40)) setupRoad(); return; }
   const s=Math.max(60,Math.min(h/pairCount-20,w*.27,190));
   document.documentElement.style.setProperty('--cardsize',s+'px');
@@ -851,6 +870,7 @@ function updateTop(){
   $('#gameSeg [data-g="robo"]').innerHTML='くみたて'+stars(roboLevel());
   document.querySelectorAll('#kumiSeg button').forEach(b=>b.classList.toggle('on',b.dataset.k===kumiSel));
   $('#gameSeg [data-g="kt"]').innerHTML='かたち'+stars(ktLevel());
+  $('#gameSeg [data-g="nuri"]').innerHTML='ぬりえ'+stars(nuriLevel());
   $('#modeSeg [data-m="kazu"]').innerHTML='123'+(game==='yoko'?stars(level('kazu')):'');
   $('#modeSeg [data-m="abc"]').innerHTML='ABC'+(game==='yoko'?stars(level('abc')):'');
   $('#countBtn').textContent='ペア '+pairCount;
@@ -867,9 +887,16 @@ function newRound(){
   document.body.classList.toggle('pz',game==='pz'||game==='robo');
   document.body.classList.toggle('robo',game==='robo');
   document.body.classList.toggle('kt',game==='kt');
+  document.body.classList.toggle('nuri',game==='nuri');
   nakaEl.innerHTML=''; NK=null; okuEl.innerHTML=''; OK=null; od=null;
   pzEl.innerHTML=''; pzEl.classList.remove('whole'); PZ=null; pd=null;
   ktStop(); ktEl.innerHTML=''; KT=null; kd=null;
+  nuriEl.innerHTML=''; NU=null; nd=null;
+  if(game==='nuri'){
+    leftCol.innerHTML=''; rightCol.innerHTML=''; roadSvg.innerHTML=''; R=null;
+    dinoEl.className='hint'; dinoEl.innerHTML=dino.svg; dinoEl.style.setProperty('--p','.06');
+    updateTop(); nuriRound(); return;
+  }
   if(game==='kt'){
     leftCol.innerHTML=''; rightCol.innerHTML=''; roadSvg.innerHTML=''; R=null;
     dinoEl.className='hint'; dinoEl.innerHTML=dino.svg; dinoEl.style.setProperty('--p','.06');
@@ -927,6 +954,7 @@ board.addEventListener('pointerdown',e=>{
   if(game==='oku'){okuDown(e);return}
   if(game==='pz'||game==='robo'){pzDown(e);return}
   if(game==='kt'){ktDown(e);return}
+  if(game==='nuri'){nuriDown(e);return}
   const card=e.target.closest('.card');
   if(!card||card.classList.contains('done')||drag||won) return;
   e.preventDefault(); ac(); tick();
@@ -939,6 +967,7 @@ window.addEventListener('pointermove',e=>{
   if(od){okuMove(e);return}
   if(pd){pzMove(e);return}
   if(kd){ktMove(e);return}
+  if(nd){nuriMove(e);return}
   if(!drag||e.pointerId!==drag.id) return;
   setLine(drag.g,drag.p,{x:e.clientX,y:e.clientY});
   const t=findTarget(e.clientX,e.clientY,drag.card.dataset.side);
@@ -950,6 +979,7 @@ function endDrag(e){
   if(od){okuUp(e);return}
   if(pd){pzUp(e);return}
   if(kd){ktUp(e);return}
+  if(nd){nuriUp(e);return}
   if(!drag||e.pointerId!==drag.id) return;
   const {card,g}=drag; drag=null; clearHover(); card.classList.remove('active');
   const t=e.type==='pointerup'?findTarget(e.clientX,e.clientY,card.dataset.side):null;
@@ -1626,6 +1656,126 @@ function ktUp(e){
   setTimeout(()=>b.el.classList.remove('back'),380);
 }
 
+/* ===== ぬりえ（絵の具の筆で撫でて色をぬる） ===== */
+const nuriEl=$('#nuri');
+/* ★1: 絵ぜんぶが1つ（撫でると全体の色が変わる） / ★2: 2つにぬりわけ / ★3: 3つ / ★4: 色ごとに細かく
+   数字は「その★になるのに必要なクリア回数」 */
+const NURI_LV=[0,6,12,18], NURI_K={1:1,2:2,3:3,4:99};
+function nuriLevel(){let lv=1;NURI_LV.forEach((v,i)=>{if(clears.nuri>=v)lv=i+1});return lv}
+const PAINTS=[{n:'あか',c:'#ff595e'},{n:'オレンジ',c:'#ff924c'},{n:'きいろ',c:'#ffca3a'},{n:'みどり',c:'#8ac926'},{n:'みずいろ',c:'#4cc9f0'},
+              {n:'あお',c:'#1982c4'},{n:'むらさき',c:'#9b5de5'},{n:'ピンク',c:'#ff70a6'},{n:'ちゃいろ',c:'#a0673d'}];
+let NU=null, nd=null, nuriBag=[];
+const hexRGB=h=>{h=h.replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');const n=parseInt(h,16);return[n>>16&255,n>>8&255,n&255]};
+const mixHex=(a,b,t)=>{const A=hexRGB(a),B=hexRGB(b);return '#'+A.map((v,i)=>Math.round(v+(B[i]-v)*t).toString(16).padStart(2,'0')).join('')};
+const lum=h=>{const [r,g,b]=hexRGB(h);return (r*.299+g*.587+b*.114)/255};
+function nuriPicture(lv){
+  if(!nuriBag.length){
+    let pool=ITEMS.map(it=>({svg:it.svg,n:it.n})).concat(CP_CHARS.map(c=>({svg:c.svg,n:c.n})));
+    if(lv>=3) pool=pool.concat(DINOS.map(d=>({svg:d.svg,n:d.n})));
+    nuriBag=shuffle(pool);
+  }
+  return nuriBag.shift();
+}
+function nuriRound(){
+  const lv=nuriLevel(), pic=nuriPicture(lv);
+  NU={lv,pic,regions:[],done:false,color:PAINTS[Math.random()*PAINTS.length|0].c};
+  const paper=document.createElement('div'); paper.className='paper'; paper.innerHTML=pic.svg;
+  const tray=document.createElement('div'); tray.className='tray';
+  const brush=document.createElement('div'); brush.className='brush';
+  brush.innerHTML=`<svg viewBox="0 0 80 80"><path d="M44 36L70 8q5-4 8 0t0 8L50 42z" fill="#c8895a" stroke="#8b5a3c" stroke-width="2"/>
+    <rect x="38" y="32" width="14" height="16" rx="3" transform="rotate(45 45 40)" fill="#adb5bd"/>
+    <path class="tip" d="M40 44q-10 4-22 22q-8 10 0 10q10 0 18-14q6-10 4-18z" fill="#ff595e" stroke="#fff" stroke-width="2"/></svg>`;
+  nuriEl.append(tray,paper,brush); NU.paper=paper; NU.tray=tray; NU.brush=brush;
+  NU.pots=PAINTS.map(p=>{const d=document.createElement('div');d.className='pot';d.style.setProperty('--c',p.c);d.dataset.c=p.c;d.setAttribute('aria-label',p.n);nuriEl.appendChild(d);return d});
+  nuriLayout();
+  // 色つきの絵 → 線画（ぬれる部分）にする
+  const svg=paper.querySelector('svg'), vb=svg.viewBox.baseVal, total=vb.width*vb.height;
+  const groups={};
+  svg.querySelectorAll('circle,ellipse,rect,path,polygon').forEach(el=>{
+    let fill=null, hidden=false, n=el;
+    while(n&&n!==svg){
+      if(fill==null&&n.getAttribute&&n.getAttribute('fill')) fill=n.getAttribute('fill');
+      const op=n.getAttribute&&n.getAttribute('opacity'); if(op!=null&&+op<1) hidden=true;
+      n=n.parentNode;
+    }
+    if(hidden||!fill||fill==='none'){ if(hidden) el.style.display='none'; return }
+    if(!/^#[0-9a-f]{3,6}$/i.test(fill)){el.style.display='none';return}
+    const L=lum(fill), bb=el.getBBox(), area=bb.width*bb.height;
+    if(L>.92||L<.16||area<total*.004) return;          // 白・黒・小さい模様は元の色のまま
+    const key=fill.toLowerCase();
+    (groups[key]=groups[key]||{els:[],area:0}).els.push(el); groups[key].area+=area;
+    el.setAttribute('fill','#ffffff'); el.setAttribute('stroke','#3a3a5c'); el.setAttribute('stroke-width','3');
+    el.setAttribute('vector-effect','non-scaling-stroke'); el.setAttribute('stroke-linejoin','round');
+  });
+  // ★に合わせて、ぬる場所の数をまとめる（大きい部分から順に、のこりは最後の1つに）
+  const gs=Object.values(groups).sort((a,b)=>b.area-a.area), k=Math.min(NURI_K[lv],gs.length);
+  const regs=[];
+  gs.forEach((g,i)=>{const j=Math.min(i,k-1);(regs[j]=regs[j]||[]).push(...g.els)});
+  NU.regions=regs.map((els,i)=>{els.forEach(el=>el.dataset.r=i);return{els,cur:'#ffffff',from:'#ffffff',to:null,p:0,colored:false}});
+  nuriPick(NU.color,true);
+}
+function nuriLayout(){
+  if(!NU) return;
+  const W=board.clientWidth, H=board.clientHeight, gap=14, side=W>H*1.25;
+  let pA,tA;
+  if(side){const tw=Math.max(140,W*.24);pA={x:0,y:0,w:W-tw-gap,h:H};tA={x:W-tw,y:0,w:tw,h:H}}
+  else{const th=Math.max(96,H*.24);pA={x:0,y:0,w:W,h:H-th-gap};tA={x:0,y:H-th,w:W,h:th}}
+  const vb=NU.paper.querySelector('svg').viewBox.baseVal, ar=vb.width/vb.height;
+  const pw=Math.min(pA.w*.94,(pA.h*.96)*ar,620), ph=pw/ar;
+  Object.assign(NU.paper.style,{left:pA.x+(pA.w-pw)/2+'px',top:pA.y+(pA.h-ph)/2+'px',width:pw+'px',height:ph+'px'});
+  Object.assign(NU.tray.style,{left:tA.x+'px',top:tA.y+'px',width:tA.w+'px',height:tA.h+'px'});
+  const n=NU.pots.length; let best={s:0,c:n};
+  for(let c=1;c<=n;c++){const r=Math.ceil(n/c),sz=Math.min((tA.w-20)/c,(tA.h-20)/r)*.74;if(sz>best.s)best={s:sz,c}}
+  const s=Math.min(best.s,84), cols=best.c, rows=Math.ceil(n/cols), cw=(tA.w-20)/cols, rh=(tA.h-20)/rows;
+  NU.pots.forEach((d,i)=>{
+    const r=Math.floor(i/cols), c=i%cols, inRow=Math.min(cols,n-r*cols), off=(cols-inRow)*cw/2;
+    Object.assign(d.style,{width:s+'px',height:s+'px',left:tA.x+10+off+cw*c+cw/2-s/2+'px',top:tA.y+10+rh*r+rh/2-s/2+'px'});
+  });
+}
+function nuriPick(c,silent){
+  NU.color=c; NU.pots.forEach(d=>d.classList.toggle('on',d.dataset.c===c));
+  NU.brush.querySelector('.tip').setAttribute('fill',c);
+  if(!silent){tick();const p=PAINTS.find(p=>p.c===c);if(p)utter(p.n)}   // 色の名前を言う
+}
+function nuriDown(e){
+  if(!NU||won||nd) return;
+  const pot=e.target.closest('#nuri .pot');
+  if(pot){e.preventDefault();ac();nuriPick(pot.dataset.c);return}
+  e.preventDefault(); ac();
+  nd={id:e.pointerId,last:{x:e.clientX,y:e.clientY},sh:0};
+  NU.brush.classList.add('show'); nuriBrushAt(e); nuriPaint(e.clientX,e.clientY,8);
+}
+function nuriBrushAt(e){const q=lp(e);NU.brush.style.left=q.x+'px';NU.brush.style.top=q.y+'px'}
+function nuriPaint(x,y,dist){
+  const el=document.elementFromPoint(x,y); if(!el||!el.dataset||el.dataset.r==null) return;
+  const r=NU.regions[+el.dataset.r];
+  if(r.to!==NU.color){r.from=r.cur;r.to=NU.color;r.p=0}
+  if(r.p>=1) return;
+  const need=NU.lv===1?220:150;                       // これだけ撫でると、しっかり色がつく
+  r.p=Math.min(1,r.p+dist/need);
+  r.cur=mixHex(r.from,r.to,r.p); r.els.forEach(e2=>e2.setAttribute('fill',r.cur));
+  if(nd){nd.sh+=dist; if(nd.sh>70){nd.sh=0;tone(1600+Math.random()*600,0,.05,'triangle',.03)}}   // しゃかしゃか
+  if(r.p>=1){
+    r.cur=r.to; r.els.forEach(e2=>e2.setAttribute('fill',r.to));
+    const first=!r.colored; r.colored=true; chime(Math.random()*5|0); burst({x,y});
+    if(first&&NU.regions.every(z=>z.colored)) nuriFinish();
+  }
+}
+function nuriMove(e){
+  if(e.pointerId!==nd.id) return;
+  const d=Math.hypot(e.clientX-nd.last.x,e.clientY-nd.last.y);
+  nuriBrushAt(e);
+  const steps=Math.max(1,Math.ceil(d/10));
+  const L=nd.last;
+  for(let i=1;i<=steps&&nd;i++) nuriPaint(L.x+(e.clientX-L.x)*i/steps,L.y+(e.clientY-L.y)*i/steps,d/steps);
+  if(nd) nd.last={x:e.clientX,y:e.clientY};
+}
+function nuriUp(e){if(!nd||e.pointerId!==nd.id)return;nd=null;if(NU)NU.brush.classList.remove('show')}
+function nuriFinish(){
+  if(NU.done) return; NU.done=true; won=true; nd=null; NU.brush.classList.remove('show');
+  setTimeout(()=>{NU.paper.classList.add('done');sayName(NU.pic.n,'ja-JP',win)},500);
+}
+
 /* ===== みち ===== */
 const roadSvg=$('#road');
 let R=null, md=null;
@@ -1821,6 +1971,7 @@ function win(){
   if(game==='oku'){clears.oku++;save('okuN',clears.oku)}
   if(game==='pz'){clears.pz++;save('pzN',clears.pz)}
   if(game==='kt'){clears.kt++;save('ktN',clears.kt)}
+  if(game==='nuri'){clears.nuri++;save('nuriN',clears.nuri)}
   fanfare(); const wt=sayTok;
   setTimeout(()=>{if(wt===sayTok&&won)utter(`できたね！ ${dino.n}だよ！`)},1700);
   setTimeout(()=>{document.body.classList.add('won');dinoEl.className='reveal'+(dino.fly?' fly':'');confetti()},450);
@@ -1898,6 +2049,8 @@ document.querySelectorAll('#gameSeg button').forEach(b=>b.addEventListener('clic
       const lv=roboLevel(); clears.robo=lv>=ROBO_LV.length?0:ROBO_LV[lv]; save('roboN',clears.robo); ac(); tick(); newRound();
     }else if(game==='kt'){
       const lv=ktLevel(); clears.kt=lv>=KT_LV.length?0:KT_LV[lv]; save('ktN',clears.kt); ac(); tick(); newRound();
+    }else if(game==='nuri'){
+      const lv=nuriLevel(); clears.nuri=lv>=NURI_LV.length?0:NURI_LV[lv]; save('nuriN',clears.nuri); ac(); tick(); newRound();
     }
     return;
   }
