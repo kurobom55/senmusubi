@@ -149,7 +149,7 @@ body.nuri .col,body.nuri #countBtn,body.nuri #modeSeg{display:none}
 #nuri .pot{position:absolute;border-radius:50%;background:var(--c);border:5px solid #fff;
   box-shadow:inset 0 -7px 0 rgba(0,0,0,.18),0 5px 0 rgba(40,60,90,.2);transition:transform .15s}
 #nuri .pot.on{transform:translateY(-8px) scale(1.15);box-shadow:inset 0 -7px 0 rgba(0,0,0,.18),0 0 0 5px #ffd23f,0 10px 0 rgba(40,60,90,.2)}
-#nuri .brush{position:absolute;width:74px;height:74px;pointer-events:none;z-index:20;display:none;transform:translate(-8px,-66px)}
+#nuri .brush{position:absolute;width:96px;height:96px;pointer-events:none;z-index:20;display:none;transform:translate(-10px,-86px)}
 #nuri .brush.show{display:block}
 #nuri .brush svg{width:100%;height:100%;display:block}
 
@@ -1740,10 +1740,12 @@ function nuriPick(c,silent){
 function nuriDown(e){
   if(!NU||won||nd) return;
   const pot=e.target.closest('#nuri .pot');
-  if(pot){e.preventDefault();ac();nuriPick(pot.dataset.c);return}
   e.preventDefault(); ac();
+  // 色ボタンを押したら、その色の筆をそのまま持ってドラッグできる（絵の上から始めてもOK）
+  if(pot&&pot.dataset.c!==NU.color) nuriPick(pot.dataset.c);
   nd={id:e.pointerId,last:{x:e.clientX,y:e.clientY},sh:0};
-  NU.brush.classList.add('show'); nuriBrushAt(e); nuriPaint(e.clientX,e.clientY,8);
+  NU.brush.classList.add('show'); nuriBrushAt(e);
+  if(!pot) nuriPaint(e.clientX,e.clientY,8);
 }
 function nuriBrushAt(e){const q=lp(e);NU.brush.style.left=q.x+'px';NU.brush.style.top=q.y+'px'}
 function nuriPaint(x,y,dist){
