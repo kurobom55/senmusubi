@@ -375,6 +375,7 @@ body.naka #lines{z-index:1}
 .phi .del{position:absolute;top:2px;right:2px;width:34px;height:34px;border-radius:50%;border:none;background:#ff595e;color:#fff;font:inherit;font-size:18px;box-shadow:0 2px 0 rgba(0,0,0,.2)}
 .mgr .acts{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:6px}
 .mgr h3{margin:18px 0 6px;font-size:18px}
+.diag{white-space:pre-wrap;font-size:12px;line-height:1.5;background:#f4f6fb;border-radius:12px;padding:10px;margin:6px 0 4px;color:#3a3a5c;font-family:ui-monospace,Menlo,monospace;-webkit-user-select:text;user-select:text}
 .pbtn.danger{background:#fff0f0;color:#e03131;box-shadow:0 0 0 2px #ffc9c9 inset}
 #bdList{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
 #bdList:empty::before{content:"まだ とうろくが ありません";color:#8a8aa3;font-size:15px;text-align:center;padding:10px 0}
@@ -520,6 +521,15 @@ body.naka #lines{z-index:1}
     <div class="acts"><button type="button" class="pbtn add" id="bdAdd">＋ たんじょうびを ついか</button></div>
     <h3>📷 しゃしん</h3>
     <div class="acts"><button type="button" class="pbtn" id="toPhotos">しゃしんの せってい</button></div>
+    <h3>🔊 おとの チェック</h3>
+    <p class="note">音が出ないときに使います。ボタンを押して、鳴ったかどうか確かめてください。</p>
+    <div class="acts">
+      <button type="button" class="pbtn" id="tSfx">① ピロン（効果音）</button>
+      <button type="button" class="pbtn" id="tVoice">② こえ</button>
+      <button type="button" class="pbtn" id="tAudio">③ べつの方法の音</button>
+      <button type="button" class="pbtn" id="tFix">音を リセット</button>
+    </div>
+    <pre id="tInfo" class="diag"></pre>
     <h3>🔒 ほぞんしたデータ</h3>
     <p class="note">写真・名前・誕生日は、この端末の中（IndexedDB）だけに保存しています。インターネットには送りません。</p>
     <div class="acts">
@@ -756,14 +766,38 @@ function nextDino(){
 }
 
 /* ===== おと ===== */
-let actx=null;
+let actx=null, actxBad=0;
+/* iPad などでは、スリープ・アプリ切りかえ・ほかの音の割りこみで、音の装置が「interrupted（一時停止）」になって
+   戻らなくなることがある → 鳴らす前に毎回ようすを見て、再開。だめなら作りなおす */
+try{ if(navigator.audioSession) navigator.audioSession.type='playback' }catch(e){}   // 消音モードの影響を受けにくくする（対応している端末のみ）
+function newCtx(){
+  try{ if(actx&&actx.state!=='closed') actx.close() }catch(e){}
+  try{ actx=new (window.AudioContext||window.webkitAudioContext)() }catch(e){ actx=null }
+  actxBad=0;
+  // 無音を一瞬ならして、装置を起こす（iOSのおまじない）
+  try{ const b=actx.createBuffer(1,1,22050), s=actx.createBufferSource(); s.buffer=b; s.connect(actx.destination); s.start(0) }catch(e){}
+}
 function ac(){
   try{
-    if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();
-    if(actx.state==='suspended') actx.resume();
+    if(!actx||actx.state==='closed') newCtx();
+    if(actx&&actx.state!=='running'){
+      const p=actx.resume&&actx.resume();
+      actxBad++;
+      if(actxBad>2) newCtx();                       // なんども戻らない → 作りなおす
+      if(p&&p.then) p.then(()=>{if(actx&&actx.state==='running')actxBad=0}).catch(()=>{});
+    }else actxBad=0;
   }catch(e){}
   return actx;
 }
+// アプリに戻ってきたら、音と声をリセット（次にさわった時に作りなおす）
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'){
+    actxBad=99; speechReady=false;
+    try{ speechSynthesis.cancel() }catch(e){}
+  }
+});
+window.addEventListener('pageshow',e=>{ if(e.persisted){ actxBad=99; speechReady=false } });
+['touchend','click'].forEach(ev=>document.addEventListener(ev,()=>{ if(actxBad>=99||!actx||actx.state!=='running') { if(actxBad>=99) newCtx(); else ac() } },{capture:true,passive:true}));
 function tone(f,t0,d,type,v,f2){
   const a=ac(); if(!a||!soundOn) return;
   const t=a.currentTime+t0, o=a.createOscillator(), g=a.createGain();
@@ -805,6 +839,7 @@ function unlockSpeech(){
 function utter(t,lang,cb){
   let called=false; const go=()=>{if(!called){called=true;cb&&cb()}};
   if(!canSpeak()){setTimeout(go,900);return}
+  try{ if(speechSynthesis.speaking&&!speechSynthesis.pending&&!utter.busy) speechSynthesis.cancel() }catch(e){}   // 固まっていたらリセット
   try{
     lang=lang||'ja-JP';
     const u=new SpeechSynthesisUtterance(t); u.lang=lang;
@@ -2483,7 +2518,61 @@ function renderBdays(){
     bdList.appendChild(d);
   });
 }
-$('#setBtn').addEventListener('click',()=>{renderBdays();bdMgr.hidden=false});
+$('#setBtn').addEventListener('click',()=>{renderBdays();bdMgr.hidden=false;diagShow()});
+/* ===== おとのチェック ===== */
+function beepWav(){   // ふつうの<audio>で鳴らすための短い音（Web Audioを使わない別ルート）
+  const sr=22050, n=sr*0.35|0, buf=new ArrayBuffer(44+n*2), v=new DataView(buf);
+  const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};
+  w(0,'RIFF');v.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*2,true);
+  for(let i=0;i<n;i++){const t=i/sr,f=t<.15?880:1320,env=Math.min(1,i/400)*Math.max(0,1-i/n);v.setInt16(44+i*2,Math.sin(2*Math.PI*f*t)*env*12000,true)}
+  return URL.createObjectURL(new Blob([buf],{type:'audio/wav'}));
+}
+let beepURL=null;
+function diagShow(msg){
+  const vs=('speechSynthesis' in window)?speechSynthesis.getVoices():[];
+  const ja=vs.filter(v=>v.lang&&v.lang.startsWith('ja'));
+  const L=[
+    msg?('▶ '+msg):'',
+    '効果音ボタン: '+(soundOn?'🔊 オン':'🔇 オフ')+'　こえボタン: '+(voiceOn?'オン':'オフ'),
+    '音の装置: '+(actx?actx.state:'まだ作っていない')+(actx?('（'+actx.sampleRate+'Hz）'):''),
+    '読み上げ: '+(('speechSynthesis' in window)?'対応':'非対応')+'　声の数: '+vs.length+'（日本語 '+ja.length+'）',
+    '日本語の声: '+(ja.map(v=>v.name).slice(0,4).join(', ')||'なし'),
+    '読み上げの状態: '+(('speechSynthesis' in window)?('話し中='+speechSynthesis.speaking+' 待ち='+speechSynthesis.pending+' 一時停止='+speechSynthesis.paused):'-'),
+    '端末: '+navigator.userAgent.replace(/^Mozilla\/5\.0 /,'').slice(0,140)
+  ].filter(Boolean);
+  $('#tInfo').textContent=L.join('\n');
+}
+$('#tSfx').addEventListener('click',()=>{
+  const a=ac(); const was=soundOn; soundOn=true;
+  tone(880,0,.15,'sine',.3); tone(1320,.15,.25,'sine',.3); soundOn=was;
+  setTimeout(()=>diagShow('①を鳴らしました。聞こえなければ、効果音のしくみ（Web Audio）が止まっています。'+(a?'':'（装置を作れませんでした）')),350);
+});
+$('#tVoice').addEventListener('click',()=>{
+  try{
+    speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance('こえの テストです'); u.lang='ja-JP'; const v=pickVoice('ja-JP'); if(v)u.voice=v; u.rate=.9;
+    let st='';
+    u.onstart=()=>{st='はじまった'}; u.onend=()=>diagShow('②の読み上げが最後まで終わりました（'+(v?v.name:'標準の声')+'）。聞こえなければ音量か消音を確認。');
+    u.onerror=ev=>diagShow('②でエラー: '+(ev.error||'不明'));
+    speechSynthesis.speak(u);
+    setTimeout(()=>{if(!st)diagShow('②の読み上げが始まりませんでした。下の「音をリセット」を押してから、もう一度ためしてください。')},2500);
+  }catch(e){diagShow('②は使えません: '+e.message)}
+});
+$('#tAudio').addEventListener('click',()=>{
+  try{
+    if(!beepURL) beepURL=beepWav();
+    const au=new Audio(beepURL); au.volume=1;
+    const p=au.play();
+    if(p&&p.then) p.then(()=>diagShow('③を鳴らしました。③だけ聞こえるなら、端末は音を出せていて、効果音のしくみだけが止まっています。')).catch(e=>diagShow('③が鳴らせません: '+e.name));
+  }catch(e){diagShow('③は使えません: '+e.message)}
+});
+$('#tFix').addEventListener('click',()=>{
+  newCtx(); speechReady=false; try{speechSynthesis.cancel()}catch(e){}
+  if(!soundOn){soundOn=true;save('snd',true)} if(!voiceOn){voiceOn=true;save('voice',true)}
+  updateTop(); ac(); tone(660,0,.12,'sine',.25); tone(990,.12,.2,'sine',.25);
+  setTimeout(()=>diagShow('音を作りなおしました（効果音・こえボタンもオンにしました）。'),400);
+});
 $('#bdAdd').addEventListener('click',()=>{
   const t=new Date();
   BDAYS.push({id:Date.now().toString(36),name:'',m:t.getMonth()+1,d:t.getDate(),y:null,lead:3});
