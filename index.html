@@ -137,6 +137,23 @@ body.michi .col,body.michi #countBtn,body.michi #modeSeg{display:none}
 body.naka #naka{display:block}
 body.naka .col,body.naka #countBtn{display:none}
 
+/* ブロック（ようじ版テトリス） */
+#tet{position:absolute;inset:0;display:none}
+body.tet #tet{display:block}
+body.tet .col,body.tet #countBtn,body.tet #modeSeg{display:none}
+#tet .well{position:absolute;background:rgba(255,255,255,.55);border:5px solid #fff;border-radius:16px;box-shadow:0 8px 0 rgba(40,60,90,.18)}
+#tet .tray{position:absolute;background:rgba(255,255,255,.45);border:4px dashed rgba(255,255,255,.9);border-radius:26px}
+#tet .hole{position:absolute;border:3px dashed rgba(58,58,92,.28);border-radius:8px;background:rgba(255,255,255,.5);transition:background .15s}
+#tet .hole.ok{background:rgba(255,210,63,.6);border-color:#ffd23f;border-style:solid}
+#tet .cell{position:absolute;border-radius:8px;transition:top .35s cubic-bezier(.3,1.3,.5,1),transform .45s ease,opacity .45s ease}
+#tet .cell.boom{transform:scale(1.6) rotate(25deg);opacity:0}
+#tet .pc{position:absolute;z-index:2;transform-origin:50% 50%;transform:scale(var(--sc,1));transition:transform .2s}
+#tet .pc .cell{transition:none}
+#tet .pc.drag{z-index:10;transform:scale(1);filter:drop-shadow(0 12px 10px rgba(40,60,90,.35));transition:none}
+#tet .pc.back{transition:left .35s cubic-bezier(.3,1.4,.5,1),top .35s cubic-bezier(.3,1.4,.5,1),transform .3s}
+#tet .pc.pop{animation:sppop .45s cubic-bezier(.2,1.6,.4,1) both}
+#tet .well.shake{animation:shake .45s ease}
+
 /* ぬりえ */
 #nuri{position:absolute;inset:0;display:none}
 body.nuri #nuri{display:block}
@@ -298,7 +315,7 @@ body.naka #lines{z-index:1}
   #top{gap:4px;max-width:calc(100vw - 8px)}
   .seg{padding:3px;gap:0}
   .seg button,#top > button{font-size:13px;padding:5px 7px}
-  #gameSeg{display:grid;grid-template-columns:repeat(4,auto);justify-content:center}   /* スマホは 4つずつ2だん */
+  #gameSeg{display:grid;grid-template-columns:repeat(5,auto);justify-content:center}   /* スマホは 4つずつ2だん */
   #gameSeg button{font-size:13px;padding:5px 7px}
   .seg sup{font-size:7px;margin-left:1px}
 }
@@ -460,7 +477,7 @@ body.naka #lines{z-index:1}
 </div>
 
 <div id="dino" aria-hidden="true"></div>
-<div id="board"><div class="col left" id="leftCol"></div><div class="col right" id="rightCol"></div><svg id="road"></svg><div id="naka"></div><div id="oku"></div><div id="pz"></div><div id="kt"></div><div id="nuri"></div></div>
+<div id="board"><div class="col left" id="leftCol"></div><div class="col right" id="rightCol"></div><svg id="road"></svg><div id="naka"></div><div id="oku"></div><div id="pz"></div><div id="kt"></div><div id="nuri"></div><div id="tet"></div></div>
 <svg id="lines"><g id="linesG"></g></svg>
 
 <div id="top">
@@ -473,6 +490,7 @@ body.naka #lines{z-index:1}
     <button type="button" data-g="robo">くみたて</button>
     <button type="button" data-g="kt">かたち</button>
     <button type="button" data-g="nuri">ぬりえ</button>
+    <button type="button" data-g="tet">ブロック</button>
   </div>
   <div class="seg" id="kumiSeg">
     <button type="button" data-k="mix">まぜこぜ</button>
@@ -724,9 +742,9 @@ const board=$('#board'), leftCol=$('#leftCol'), rightCol=$('#rightCol'), linesG=
 function load(k,d){try{const v=localStorage.getItem('senmusubi_'+k);return v==null?d:JSON.parse(v)}catch(e){return d}}
 function save(k,v){try{localStorage.setItem('senmusubi_'+k,JSON.stringify(v))}catch(e){}}
 let pairCount=load('n',3), soundOn=load('snd',true), voiceOn=load('voice',true), mode=load('mode','e'), game=load('game',null),
-    clears={kazu:load('kazuN',0),abc:load('abcN',0),naka:load('nakaN',0),oku:load('okuN',0),pz:load('pzN',0),robo:load('roboN',0),kt:load('ktN',0),nuri:load('nuriN',0)};
+    clears={kazu:load('kazuN',0),abc:load('abcN',0),naka:load('nakaN',0),oku:load('okuN',0),pz:load('pzN',0),robo:load('roboN',0),kt:load('ktN',0),nuri:load('nuriN',0),tet:load('tetN',0)};
 if(mode==='michi'){game=game||'michi';mode='e'}
-if(!['yoko','naka','michi','oku','pz','robo','kt','nuri'].includes(game)) game='yoko';
+if(!['yoko','naka','michi','oku','pz','robo','kt','nuri','tet'].includes(game)) game='yoko';
 if(!MODES[mode]) mode='e';
 const stars=n=>'<sup>★'+n+'</sup>';   // レベル表示（★2 のように短く）
 function fitBoard(){board.style.top=($('#top').getBoundingClientRect().bottom+8)+'px'}
@@ -855,6 +873,7 @@ function sizeCards(){
   if(game==='pz'||game==='robo'){pzLayout();return}
   if(game==='kt'){ktLayout();return}
   if(game==='nuri'){nuriLayout();return}
+  if(game==='tet'){tetLayout();return}
   if(game==='michi'){ if(R && !md && !R.done && (Math.abs(w-R.W)>40||Math.abs(h-R.H)>40)) setupRoad(); return; }
   const s=Math.max(60,Math.min(h/pairCount-20,w*.27,190));
   document.documentElement.style.setProperty('--cardsize',s+'px');
@@ -871,6 +890,7 @@ function updateTop(){
   document.querySelectorAll('#kumiSeg button').forEach(b=>b.classList.toggle('on',b.dataset.k===kumiSel));
   $('#gameSeg [data-g="kt"]').innerHTML='かたち'+stars(ktLevel());
   $('#gameSeg [data-g="nuri"]').innerHTML='ぬりえ'+stars(nuriLevel());
+  $('#gameSeg [data-g="tet"]').innerHTML='ブロック'+stars(tetLevel());
   $('#modeSeg [data-m="kazu"]').innerHTML='123'+(game==='yoko'?stars(level('kazu')):'');
   $('#modeSeg [data-m="abc"]').innerHTML='ABC'+(game==='yoko'?stars(level('abc')):'');
   $('#countBtn').textContent='ペア '+pairCount;
@@ -888,10 +908,17 @@ function newRound(){
   document.body.classList.toggle('robo',game==='robo');
   document.body.classList.toggle('kt',game==='kt');
   document.body.classList.toggle('nuri',game==='nuri');
+  document.body.classList.toggle('tet',game==='tet');
   nakaEl.innerHTML=''; NK=null; okuEl.innerHTML=''; OK=null; od=null;
   pzEl.innerHTML=''; pzEl.classList.remove('whole'); PZ=null; pd=null;
   ktStop(); ktEl.innerHTML=''; KT=null; kd=null;
   nuriEl.innerHTML=''; NU=null; nd=null;
+  tetEl.innerHTML=''; TT=null; td=null;
+  if(game==='tet'){
+    leftCol.innerHTML=''; rightCol.innerHTML=''; roadSvg.innerHTML=''; R=null;
+    dinoEl.className='hint'; dinoEl.innerHTML=dino.svg; dinoEl.style.setProperty('--p','.06');
+    updateTop(); tetRound(); return;
+  }
   if(game==='nuri'){
     leftCol.innerHTML=''; rightCol.innerHTML=''; roadSvg.innerHTML=''; R=null;
     dinoEl.className='hint'; dinoEl.innerHTML=dino.svg; dinoEl.style.setProperty('--p','.06');
@@ -955,6 +982,7 @@ board.addEventListener('pointerdown',e=>{
   if(game==='pz'||game==='robo'){pzDown(e);return}
   if(game==='kt'){ktDown(e);return}
   if(game==='nuri'){nuriDown(e);return}
+  if(game==='tet'){tetDown(e);return}
   const card=e.target.closest('.card');
   if(!card||card.classList.contains('done')||drag||won) return;
   e.preventDefault(); ac(); tick();
@@ -968,6 +996,7 @@ window.addEventListener('pointermove',e=>{
   if(pd){pzMove(e);return}
   if(kd){ktMove(e);return}
   if(nd){nuriMove(e);return}
+  if(td){tetMove(e);return}
   if(!drag||e.pointerId!==drag.id) return;
   setLine(drag.g,drag.p,{x:e.clientX,y:e.clientY});
   const t=findTarget(e.clientX,e.clientY,drag.card.dataset.side);
@@ -980,6 +1009,7 @@ function endDrag(e){
   if(pd){pzUp(e);return}
   if(kd){ktUp(e);return}
   if(nd){nuriUp(e);return}
+  if(td){tetUp(e);return}
   if(!drag||e.pointerId!==drag.id) return;
   const {card,g}=drag; drag=null; clearHover(); card.classList.remove('active');
   const t=e.type==='pointerup'?findTarget(e.clientX,e.clientY,card.dataset.side):null;
@@ -1778,6 +1808,182 @@ function nuriFinish(){
   setTimeout(()=>{NU.paper.classList.add('done');sayName(NU.pic.n,'ja-JP',win)},500);
 }
 
+/* ===== ブロック（ようじ版テトリス：あなにピースを入れて、そろった列をドカーン） ===== */
+const tetEl=$('#tet');
+/* ピースの形（[よこ,たて] のマス。たては下が0） */
+const TSH={
+  one:[[0,0]], v2:[[0,0],[0,1]], h2:[[0,0],[1,0]], v3:[[0,0],[0,1],[0,2]], h3:[[0,0],[1,0],[2,0]],
+  sq:[[0,0],[1,0],[0,1],[1,1]], L:[[0,0],[1,0],[0,1]], J:[[0,0],[1,0],[1,1]], r:[[0,0],[0,1],[1,1]], j:[[1,0],[0,1],[1,1]]
+};
+/* ★1: 3×2・たて2つの穴だけ / ★2: 4×2 / ★3: 4×3 / ★4: 5×3・L字も / ★5: 5×4・四角も
+   数字は「その★になるのに必要なクリア回数」 */
+const TET_LV=[0,6,12,20,30];
+const TET_CFG={1:{W:3,H:2,n:1,sh:['v2'],extra:1},2:{W:4,H:2,n:2,sh:['one','v2','h2'],extra:1},3:{W:4,H:3,n:2,sh:['v2','h2','h3'],extra:0},
+               4:{W:5,H:3,n:3,sh:['one','v2','h2','L','J','r','j'],extra:0},5:{W:5,H:4,n:3,sh:['v2','h2','h3','v3','L','J','r','j','sq'],extra:0}};
+const TCOL=['#ff595e','#ff924c','#ffca3a','#8ac926','#1982c4','#9b5de5','#ff70a6','#4cc9f0'];
+function tetLevel(){let lv=1;TET_LV.forEach((v,i)=>{if(clears.tet>=v)lv=i+1});return lv}
+let TT=null, td=null;
+const cellHTML=c=>`<svg viewBox="0 0 40 40" width="100%" height="100%"><rect x="1" y="1" width="38" height="38" rx="7" fill="${c}"/><rect x="1" y="31" width="38" height="8" rx="4" fill="${shade(c,.78)}"/>
+  <rect x="5" y="4" width="30" height="5" rx="2.5" fill="#fff" opacity=".35"/><circle cx="20" cy="18" r="8" fill="${shade(c,1.12)}" stroke="${shade(c,.85)}" stroke-width="2"/></svg>`;
+function tetCarve(cfg){   // まんたんの壁から、ピースの形にくりぬく（＝ぜったい解ける）
+  for(let tries=0;tries<200;tries++){
+    const g=Array.from({length:cfg.H},()=>Array(cfg.W).fill(true)), pieces=[];
+    if(cfg.W===3&&cfg.H===2&&cfg.sh[0]==='v2'){ g[0][2]=g[1][2]=false; pieces.push('v2'); }   // ★1は「右にたて2つの穴」
+    else for(let k=0;k<cfg.n;k++){
+      const sh=cfg.sh[Math.random()*cfg.sh.length|0], cells=TSH[sh], opts=[];
+      for(let y=0;y<cfg.H;y++)for(let x=0;x<cfg.W;x++) if(cells.every(([cx,cy])=>g[y+cy]&&g[y+cy][x+cx])) opts.push([x,y]);
+      if(!opts.length) continue;
+      const [x,y]=opts[Math.random()*opts.length|0]; cells.forEach(([cx,cy])=>g[y+cy][x+cx]=false); pieces.push(sh);
+    }
+    // どの列にも穴が1つ以上・ぜんぶ空の列はなし
+    let ok=true;
+    for(let y=0;y<cfg.H;y++){
+      const holes=g[y].filter(v=>!v).length;
+      if(holes===cfg.W){ok=false;break}
+      if(holes===0){const x=Math.random()*cfg.W|0;g[y][x]=false;pieces.push('one')}
+    }
+    if(ok) return{g,pieces};
+  }
+  const g=Array.from({length:cfg.H},()=>Array(cfg.W).fill(true)); g.forEach(r=>r[cfg.W-1]=false);
+  return{g,pieces:Array(cfg.H).fill('one')};
+}
+function tetRound(){
+  const lv=tetLevel(), cfg=TET_CFG[lv], {g,pieces}=tetCarve(cfg);
+  for(let i=0;i<cfg.extra;i++) pieces.push('one');   // やさしい★では、おまけの1マス
+  TT={lv,W:cfg.W,grid:g.map(r=>r.map(v=>v?TCOL[Math.random()*TCOL.length|0]:null)),pieces:[],busy:false};
+  TT.well=document.createElement('div'); TT.well.className='well';
+  TT.tray=document.createElement('div'); TT.tray.className='tray';
+  tetEl.append(TT.tray,TT.well);
+  shuffle(pieces).forEach(sh=>tetAddPiece(sh));
+  tetLayout(); tetRender();
+}
+function tetAddPiece(sh,pop){
+  const c=TCOL[Math.random()*TCOL.length|0], el=document.createElement('div'); el.className='pc'+(pop?' pop':'');
+  TSH[sh].forEach(()=>{const d=document.createElement('div');d.className='cell';d.innerHTML=cellHTML(c);el.appendChild(d)});
+  tetEl.appendChild(el); const p={el,sh,c}; TT.pieces.push(p); return p;
+}
+function tetLayout(){
+  if(!TT) return;
+  const W=board.clientWidth, H=board.clientHeight, gap=14, side=W>H*1.3;
+  const rows=Math.max(TT.grid.length,1), cols=TT.W;
+  let wA,tA;
+  if(side){const tw=Math.max(170,W*.34);tA={x:0,y:0,w:tw,h:H};wA={x:tw+gap,y:0,w:W-tw-gap,h:H}}
+  else{const th=Math.max(120,H*.36);tA={x:0,y:0,w:W,h:th};wA={x:0,y:th+gap,w:W,h:H-th-gap}}
+  const s=Math.min((wA.w-30)/cols,(wA.h-30)/Math.max(rows,2),110); TT.s=s;
+  const ww=s*cols, wh=s*rows;
+  TT.ox=wA.x+(wA.w-ww)/2; TT.oy=wA.y+wA.h-10-wh;   // 下にそろえる
+  Object.assign(TT.well.style,{left:TT.ox-8+'px',top:TT.oy-8+'px',width:ww+16+'px',height:wh+16+'px'});
+  Object.assign(TT.tray.style,{left:tA.x+'px',top:tA.y+'px',width:tA.w+'px',height:tA.h+'px'});
+  TT.tA=tA;
+  // トレイのピース
+  const n=TT.pieces.length||1; let best={sc:0,c:n};
+  const dim=p=>{const cs=TSH[p.sh];return[1+Math.max(...cs.map(c=>c[0])),1+Math.max(...cs.map(c=>c[1]))]};
+  const mw=Math.max(1,...TT.pieces.map(p=>dim(p)[0])), mh=Math.max(1,...TT.pieces.map(p=>dim(p)[1]));
+  for(let c=1;c<=n;c++){const r=Math.ceil(n/c),sc=Math.min((tA.w-24)/c/((mw+.4)*s),(tA.h-24)/r/((mh+.4)*s),1)*.95;if(sc>best.sc)best={sc,c}}
+  TT.sc=Math.max(best.sc,.45); const cw=(tA.w-24)/best.c, rh=(tA.h-24)/Math.ceil(n/best.c);
+  TT.pieces.forEach((p,i)=>{
+    const cells=TSH[p.sh], pw=1+Math.max(...cells.map(c=>c[0])), ph=1+Math.max(...cells.map(c=>c[1]));
+    p.w=pw; p.h=ph;
+    Object.assign(p.el.style,{width:pw*s+'px',height:ph*s+'px'});
+    [...p.el.children].forEach((d,k)=>{const [cx,cy]=cells[k];Object.assign(d.style,{left:cx*s+2+'px',top:(ph-1-cy)*s+2+'px',width:s-4+'px',height:s-4+'px'})});
+    const r=Math.floor(i/best.c), c=i%best.c, inRow=Math.min(best.c,n-r*best.c), off=(best.c-inRow)*cw/2;
+    p.home={x:tA.x+12+off+cw*c+cw/2,y:tA.y+12+rh*r+rh/2};
+    if(td&&td.p===p) return;
+    tetSet(p,p.home.x,p.home.y); p.el.style.setProperty('--sc',TT.sc);
+  });
+  tetRender();
+}
+function tetSet(p,x,y){p.el.style.left=(x-p.w*TT.s/2)+'px';p.el.style.top=(y-p.h*TT.s/2)+'px';p.at={x,y}}
+const tetXY=(x,y)=>({left:TT.ox+x*TT.s,top:TT.oy+(TT.grid.length-1-y)*TT.s});
+function tetRender(){   // かべのブロックと穴をかきなおす
+  if(!TT) return;
+  tetEl.querySelectorAll(':scope > .cell, :scope > .hole').forEach(e=>{if(!e.classList.contains('boom'))e.remove()});
+  const s=TT.s;
+  TT.grid.forEach((row,y)=>row.forEach((c,x)=>{
+    const d=document.createElement('div'), p=tetXY(x,y);
+    d.className=c?'cell':'hole'; d.dataset.x=x; d.dataset.y=y;
+    Object.assign(d.style,{left:p.left+2+'px',top:p.top+2+'px',width:s-4+'px',height:s-4+'px'});
+    if(c) d.innerHTML=cellHTML(c);
+    tetEl.appendChild(d);
+  }));
+  TT.well.style.height=TT.grid.length*s+16+'px'; TT.well.style.top=TT.oy-8+'px';
+}
+function tetFits(sh,x,y){return TSH[sh].every(([cx,cy])=>{const r=TT.grid[y+cy];return r&&x+cx>=0&&x+cx<TT.W&&r[x+cx]===null})}
+function tetSpot(p){   // 今の場所の近くで、ぴったり入るところをさがす（ゆるめ）
+  const s=TT.s, left=p.at.x-p.w*s/2, bottom=p.at.y+p.h*s/2;
+  const fx=(left-TT.ox)/s, fy=(TT.oy+TT.grid.length*s-bottom)/s;
+  let best=null,bd=1e9;
+  for(let y=Math.floor(fy)-1;y<=Math.ceil(fy)+1;y++)for(let x=Math.floor(fx)-1;x<=Math.ceil(fx)+1;x++){
+    if(!tetFits(p.sh,x,y)) continue;
+    const d=Math.hypot(x-fx,y-fy); if(d<bd&&d<.9){bd=d;best={x,y}}
+  }
+  return best;
+}
+function tetDown(e){
+  const el=e.target.closest('#tet .pc'); if(!TT||!el||won||td||TT.busy) return;
+  const p=TT.pieces.find(q=>q.el===el); if(!p) return;
+  e.preventDefault(); ac(); tick();
+  const q=lp(e); td={p,id:e.pointerId,off:{x:(q.x-p.at.x)/TT.sc,y:(q.y-p.at.y)/TT.sc}};
+  el.classList.remove('back','pop'); el.classList.add('drag');
+  tetSet(p,q.x-td.off.x,q.y-td.off.y);
+}
+function tetMove(e){
+  if(e.pointerId!==td.id) return;
+  const q=lp(e); tetSet(td.p,q.x-td.off.x,q.y-td.off.y);
+  tetEl.querySelectorAll('.hole.ok').forEach(h=>h.classList.remove('ok'));
+  const sp=tetSpot(td.p);
+  if(sp) TSH[td.p.sh].forEach(([cx,cy])=>{const h=tetEl.querySelector(`.hole[data-x="${sp.x+cx}"][data-y="${sp.y+cy}"]`);if(h)h.classList.add('ok')});
+}
+function tetUp(e){
+  if(e.pointerId!==td.id) return;
+  const p=td.p; td=null; p.el.classList.remove('drag');
+  tetEl.querySelectorAll('.hole.ok').forEach(h=>h.classList.remove('ok'));
+  const sp=tetSpot(p);
+  if(!sp){ p.el.classList.add('back'); tetSet(p,p.home.x,p.home.y); setTimeout(()=>p.el.classList.remove('back'),380); return }
+  // はめる
+  TSH[p.sh].forEach(([cx,cy])=>TT.grid[sp.y+cy][sp.x+cx]=p.c);
+  p.el.remove(); TT.pieces=TT.pieces.filter(q=>q!==p);
+  tone(700,0,.06,'square',.08); tone(420,.05,.1,'triangle',.12);
+  tetRender();
+  const full=TT.grid.map((r,y)=>r.every(v=>v)?y:-1).filter(y=>y>=0);
+  if(full.length) tetBlast(full); else tetCheckStuck();
+}
+function sfxBoom(big){
+  tone(160,0,.5,'sawtooth',.16,40); tone(90,0,.6,'square',.1,30);
+  if(big){tone(220,.15,.6,'sawtooth',.12,50);tone(660,.05,.3,'triangle',.12,1320)}
+}
+function tetBlast(rows){
+  TT.busy=true; sfxBoom(rows.length>1);
+  TT.well.classList.remove('shake'); void TT.well.offsetWidth; TT.well.classList.add('shake');
+  rows.forEach(y=>{
+    tetEl.querySelectorAll(`:scope > .cell[data-y="${y}"]`).forEach(d=>{
+      d.classList.add('boom'); const r=d.getBoundingClientRect(); burst({x:r.left+r.width/2,y:r.top+r.height/2});
+      setTimeout(()=>d.remove(),460);
+    });
+  });
+  if(rows.length>1) setTimeout(confetti,100);
+  setTimeout(()=>{
+    TT.grid=TT.grid.filter((r,y)=>!rows.includes(y));     // そろった列は消えて、上の列が下へ
+    TT.busy=false; tetLayout();
+    dinoEl.style.setProperty('--p',(.06+.3*(1-TT.grid.length/TET_CFG[TT.lv].H)).toFixed(3));
+    if(!TT.grid.length){ won=true; sayName('ぜんぶ きえた！','ja-JP',win); return }
+    tetCheckStuck();
+  },480);
+}
+function tetCheckStuck(){   // 入れられるピースがない → 残りの穴にぴったりのピースを出す
+  const canAny=TT.pieces.some(p=>{for(let y=0;y<TT.grid.length;y++)for(let x=0;x<TT.W;x++)if(tetFits(p.sh,x,y))return true;return false});
+  if(canAny) return;
+  TT.pieces.forEach(p=>p.el.remove()); TT.pieces=[];
+  const used=TT.grid.map(r=>r.map(v=>!!v));
+  for(let y=0;y<TT.grid.length;y++)for(let x=0;x<TT.W;x++){
+    if(used[y][x]) continue;
+    if(used[y+1]&&!used[y+1][x]){used[y][x]=used[y+1][x]=true;tetAddPiece('v2',true)}
+    else if(x+1<TT.W&&!used[y][x+1]){used[y][x]=used[y][x+1]=true;tetAddPiece('h2',true)}
+    else{used[y][x]=true;tetAddPiece('one',true)}
+  }
+  tetLayout(); tone(880,0,.12,'sine',.12); tone(1175,.1,.18,'sine',.12);
+}
+
 /* ===== みち ===== */
 const roadSvg=$('#road');
 let R=null, md=null;
@@ -1974,6 +2180,7 @@ function win(){
   if(game==='pz'){clears.pz++;save('pzN',clears.pz)}
   if(game==='kt'){clears.kt++;save('ktN',clears.kt)}
   if(game==='nuri'){clears.nuri++;save('nuriN',clears.nuri)}
+  if(game==='tet'){clears.tet++;save('tetN',clears.tet)}
   fanfare(); const wt=sayTok;
   setTimeout(()=>{if(wt===sayTok&&won)utter(`できたね！ ${dino.n}だよ！`)},1700);
   setTimeout(()=>{document.body.classList.add('won');dinoEl.className='reveal'+(dino.fly?' fly':'');confetti()},450);
@@ -2053,6 +2260,8 @@ document.querySelectorAll('#gameSeg button').forEach(b=>b.addEventListener('clic
       const lv=ktLevel(); clears.kt=lv>=KT_LV.length?0:KT_LV[lv]; save('ktN',clears.kt); ac(); tick(); newRound();
     }else if(game==='nuri'){
       const lv=nuriLevel(); clears.nuri=lv>=NURI_LV.length?0:NURI_LV[lv]; save('nuriN',clears.nuri); ac(); tick(); newRound();
+    }else if(game==='tet'){
+      const lv=tetLevel(); clears.tet=lv>=TET_LV.length?0:TET_LV[lv]; save('tetN',clears.tet); ac(); tick(); newRound();
     }
     return;
   }
