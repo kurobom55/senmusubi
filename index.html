@@ -137,6 +137,26 @@ body.michi .col,body.michi #countBtn,body.michi #modeSeg{display:none}
 body.naka #naka{display:block}
 body.naka .col,body.naka #countBtn{display:none}
 
+/* ふくわらい */
+#fuku{position:absolute;inset:0;display:none}
+body.fuku #fuku{display:block}
+body.fuku .col,body.fuku #countBtn,body.fuku #modeSeg{display:none}
+#fuku .face{position:absolute}
+#fuku .face > svg{width:100%;height:100%;display:block;overflow:visible}
+#fuku .tray{position:absolute;background:rgba(255,255,255,.45);border:4px dashed rgba(255,255,255,.9);border-radius:26px}
+#fuku .fp{position:absolute;z-index:2;filter:drop-shadow(0 4px 4px rgba(40,60,90,.25));transform:scale(var(--sc,1));transition:transform .2s}
+#fuku .fp svg{width:100%;height:100%;display:block;overflow:visible}
+#fuku .fp.drag{z-index:10;transform:scale(1.12);filter:drop-shadow(0 12px 10px rgba(40,60,90,.35));transition:none}
+#fuku .fp.back{transition:left .35s cubic-bezier(.3,1.4,.5,1),top .35s cubic-bezier(.3,1.4,.5,1),transform .3s}
+#fuku .fp.snap{transition:left .18s ease-out,top .18s ease-out,transform .18s}
+#fuku .fp.placed{filter:none;z-index:1}
+#fuku .ghostp{position:absolute;opacity:.22;pointer-events:none}
+#fuku .ghostp svg{width:100%;height:100%;display:block}
+#fuku .ghostp.near{opacity:.55;filter:drop-shadow(0 0 6px #ffd23f)}
+#fuku.laugh .face,#fuku.laugh .fp.placed{animation:laughw .35s ease-in-out 6}
+@keyframes laughw{25%{transform:rotate(-3deg) translateY(-2%)}75%{transform:rotate(3deg) translateY(1%)}}
+#fuku.happy .face{animation:yay .7s ease}
+
 /* ブロック（ようじ版テトリス） */
 #tet{position:absolute;inset:0;display:none}
 body.tet #tet{display:block}
@@ -315,8 +335,10 @@ body.naka #lines{z-index:1}
   #top{gap:4px;max-width:calc(100vw - 8px)}
   .seg{padding:3px;gap:0}
   .seg button,#top > button{font-size:13px;padding:5px 7px}
-  #gameSeg{display:grid;grid-template-columns:repeat(5,auto);justify-content:center}   /* スマホは 4つずつ2だん */
-  #gameSeg button{font-size:13px;padding:5px 7px}
+  #gameSeg{display:grid;grid-template-columns:repeat(5,auto);justify-content:center}
+  #gameSeg button[data-g="fuku"]{letter-spacing:-.05em}   /* スマホは 4つずつ2だん */
+  #gameSeg button{font-size:12px;padding:5px 4px}
+  #gameSeg sup{font-size:7px;margin-left:0}
   .seg sup{font-size:7px;margin-left:1px}
 }
 /* スプラッシュ */
@@ -478,7 +500,7 @@ body.naka #lines{z-index:1}
 </div>
 
 <div id="dino" aria-hidden="true"></div>
-<div id="board"><div class="col left" id="leftCol"></div><div class="col right" id="rightCol"></div><svg id="road"></svg><div id="naka"></div><div id="oku"></div><div id="pz"></div><div id="kt"></div><div id="nuri"></div><div id="tet"></div></div>
+<div id="board"><div class="col left" id="leftCol"></div><div class="col right" id="rightCol"></div><svg id="road"></svg><div id="naka"></div><div id="oku"></div><div id="pz"></div><div id="kt"></div><div id="nuri"></div><div id="tet"></div><div id="fuku"></div></div>
 <svg id="lines"><g id="linesG"></g></svg>
 
 <div id="top">
@@ -492,6 +514,7 @@ body.naka #lines{z-index:1}
     <button type="button" data-g="kt">かたち</button>
     <button type="button" data-g="nuri">ぬりえ</button>
     <button type="button" data-g="tet">ブロック</button>
+    <button type="button" data-g="fuku">ふくわらい</button>
   </div>
   <div class="seg" id="kumiSeg">
     <button type="button" data-k="mix">まぜこぜ</button>
@@ -752,9 +775,9 @@ const board=$('#board'), leftCol=$('#leftCol'), rightCol=$('#rightCol'), linesG=
 function load(k,d){try{const v=localStorage.getItem('senmusubi_'+k);return v==null?d:JSON.parse(v)}catch(e){return d}}
 function save(k,v){try{localStorage.setItem('senmusubi_'+k,JSON.stringify(v))}catch(e){}}
 let pairCount=load('n',3), soundOn=load('snd',true), voiceOn=load('voice',true), mode=load('mode','e'), game=load('game',null),
-    clears={kazu:load('kazuN',0),abc:load('abcN',0),naka:load('nakaN',0),oku:load('okuN',0),pz:load('pzN',0),robo:load('roboN',0),kt:load('ktN',0),nuri:load('nuriN',0),tet:load('tetN',0)};
+    clears={kazu:load('kazuN',0),abc:load('abcN',0),naka:load('nakaN',0),oku:load('okuN',0),pz:load('pzN',0),robo:load('roboN',0),kt:load('ktN',0),nuri:load('nuriN',0),tet:load('tetN',0),fuku:load('fukuN',0)};
 if(mode==='michi'){game=game||'michi';mode='e'}
-if(!['yoko','naka','michi','oku','pz','robo','kt','nuri','tet'].includes(game)) game='yoko';
+if(!['yoko','naka','michi','oku','pz','robo','kt','nuri','tet','fuku'].includes(game)) game='yoko';
 if(!MODES[mode]) mode='e';
 const stars=n=>'<sup>★'+n+'</sup>';   // レベル表示（★2 のように短く）
 function fitBoard(){board.style.top=($('#top').getBoundingClientRect().bottom+8)+'px'}
@@ -909,6 +932,7 @@ function sizeCards(){
   if(game==='kt'){ktLayout();return}
   if(game==='nuri'){nuriLayout();return}
   if(game==='tet'){tetLayout();return}
+  if(game==='fuku'){fukuLayout();return}
   if(game==='michi'){ if(R && !md && !R.done && (Math.abs(w-R.W)>40||Math.abs(h-R.H)>40)) setupRoad(); return; }
   const s=Math.max(60,Math.min(h/pairCount-20,w*.27,190));
   document.documentElement.style.setProperty('--cardsize',s+'px');
@@ -926,6 +950,7 @@ function updateTop(){
   $('#gameSeg [data-g="kt"]').innerHTML='かたち'+stars(ktLevel());
   $('#gameSeg [data-g="nuri"]').innerHTML='ぬりえ'+stars(nuriLevel());
   $('#gameSeg [data-g="tet"]').innerHTML='ブロック'+stars(tetLevel());
+  $('#gameSeg [data-g="fuku"]').innerHTML='ふくわらい'+stars(fukuLevel());
   $('#modeSeg [data-m="kazu"]').innerHTML='123'+(game==='yoko'?stars(level('kazu')):'');
   $('#modeSeg [data-m="abc"]').innerHTML='ABC'+(game==='yoko'?stars(level('abc')):'');
   $('#countBtn').textContent='ペア '+pairCount;
@@ -944,11 +969,18 @@ function newRound(){
   document.body.classList.toggle('kt',game==='kt');
   document.body.classList.toggle('nuri',game==='nuri');
   document.body.classList.toggle('tet',game==='tet');
+  document.body.classList.toggle('fuku',game==='fuku');
   nakaEl.innerHTML=''; NK=null; okuEl.innerHTML=''; OK=null; od=null;
   pzEl.innerHTML=''; pzEl.classList.remove('whole'); PZ=null; pd=null;
   ktStop(); ktEl.innerHTML=''; KT=null; kd=null;
   nuriEl.innerHTML=''; NU=null; nd=null;
   tetEl.innerHTML=''; TT=null; td=null;
+  fukuEl.innerHTML=''; fukuEl.className=''; FK=null; fd=null;
+  if(game==='fuku'){
+    leftCol.innerHTML=''; rightCol.innerHTML=''; roadSvg.innerHTML=''; R=null;
+    dinoEl.className='hint'; dinoEl.innerHTML=dino.svg; dinoEl.style.setProperty('--p','.06');
+    updateTop(); fukuRound(); return;
+  }
   if(game==='tet'){
     leftCol.innerHTML=''; rightCol.innerHTML=''; roadSvg.innerHTML=''; R=null;
     dinoEl.className='hint'; dinoEl.innerHTML=dino.svg; dinoEl.style.setProperty('--p','.06');
@@ -1018,6 +1050,7 @@ board.addEventListener('pointerdown',e=>{
   if(game==='kt'){ktDown(e);return}
   if(game==='nuri'){nuriDown(e);return}
   if(game==='tet'){tetDown(e);return}
+  if(game==='fuku'){fukuDown(e);return}
   const card=e.target.closest('.card');
   if(!card||card.classList.contains('done')||drag||won) return;
   e.preventDefault(); ac(); tick();
@@ -1032,6 +1065,7 @@ window.addEventListener('pointermove',e=>{
   if(kd){ktMove(e);return}
   if(nd){nuriMove(e);return}
   if(td){tetMove(e);return}
+  if(fd){fukuMove(e);return}
   if(!drag||e.pointerId!==drag.id) return;
   setLine(drag.g,drag.p,{x:e.clientX,y:e.clientY});
   const t=findTarget(e.clientX,e.clientY,drag.card.dataset.side);
@@ -1045,6 +1079,7 @@ function endDrag(e){
   if(kd){ktUp(e);return}
   if(nd){nuriUp(e);return}
   if(td){tetUp(e);return}
+  if(fd){fukuUp(e);return}
   if(!drag||e.pointerId!==drag.id) return;
   const {card,g}=drag; drag=null; clearHover(); card.classList.remove('active');
   const t=e.type==='pointerup'?findTarget(e.clientX,e.clientY,card.dataset.side):null;
@@ -2019,6 +2054,163 @@ function tetCheckStuck(){   // 入れられるピースがない → 残りの�
   tetLayout(); tone(880,0,.12,'sine',.12); tone(1175,.1,.18,'sine',.12);
 }
 
+/* ===== ふくわらい ===== */
+const fukuEl=$('#fuku');
+/* ★1: 目(2つで1パーツ)・はな・くち / ★2: 目が左右べつ / ★3: まゆげも（ここまでは近づけると決まった場所にピタッ）
+   ★4: ほっぺも・置いたところにそのまま止まる、むかしながらの福笑い。数字は「その★になるのに必要なクリア回数」 */
+const FUKU_LV=[0,6,12,20];
+const FUKU_SET={1:['eyes','nose','mouth'],2:['eyeL','eyeR','nose','mouth'],3:['browL','browR','eyeL','eyeR','nose','mouth'],
+                4:['browL','browR','eyeL','eyeR','nose','mouth','cheekL','cheekR']};
+const FUKU_POS={eyes:[150,162],eyeL:[108,162],eyeR:[192,162],browL:[108,126],browR:[192,126],nose:[150,206],mouth:[150,252],cheekL:[80,218],cheekR:[220,218]};
+const FUKU_GROUP={eyeL:'eye',eyeR:'eye',browL:'brow',browR:'brow',cheekL:'cheek',cheekR:'cheek'};
+function fukuLevel(){let lv=1;FUKU_LV.forEach((v,i)=>{if(clears.fuku>=v)lv=i+1});return lv}
+/* 顔（オリジナル）：パーツのない「のっぺらぼう」と、パーツの絵 */
+const FACES=[
+  {n:'にっこりさん',skin:'#ffe0c2',base:`<ellipse cx="34" cy="196" rx="16" ry="24" fill="#ffd2ad"/><ellipse cx="266" cy="196" rx="16" ry="24" fill="#ffd2ad"/>
+     <ellipse cx="150" cy="192" rx="118" ry="132" fill="#ffe0c2"/>
+     <path d="M34 160C30 70 90 40 150 40s120 30 116 120c-20-40-50-62-90-60-10 14-40 18-60 6-20 10-60 0-86 54z" fill="#4a3426"/>`,
+   nose:`<ellipse cx="0" cy="0" rx="10" ry="8" fill="#f2b48a"/><ellipse cx="-3" cy="-3" rx="3" ry="2" fill="#fff" opacity=".6"/>`,
+   mouth:`<path d="M-30 -6Q0 28 30 -6Q0 10 -30 -6z" fill="#e8505b"/><path d="M-12 8q12 8 24 0" fill="#ff8fa3"/>`},
+  {n:'ねこさん',skin:'#ffcf8a',base:`<path d="M44 120L58 30L120 86z" fill="#ffb84d"/><path d="M256 120L242 30L180 86z" fill="#ffb84d"/>
+     <path d="M62 104L68 54L104 88z" fill="#ffc9de"/><path d="M238 104L232 54L196 88z" fill="#ffc9de"/>
+     <ellipse cx="150" cy="196" rx="122" ry="122" fill="#ffcf8a"/>
+     <path d="M150 74v26M130 78l6 22M170 78l-6 22" stroke="#f08c00" stroke-width="7" stroke-linecap="round"/>
+     <path d="M30 216h46M34 236l42-8M270 216h-46M266 236l-42-8" stroke="#7a5230" stroke-width="3" stroke-linecap="round"/>`,
+   nose:`<path d="M-11 -6h22l-11 12z" fill="#ff6b8b"/>`,
+   mouth:`<path d="M-24 -4q12 16 24 0q12 16 24 0" stroke="#7a5230" stroke-width="5" fill="none" stroke-linecap="round"/>`},
+  {n:'くまさん',skin:'#c8895a',base:`<circle cx="56" cy="78" r="36" fill="#a86d3f"/><circle cx="244" cy="78" r="36" fill="#a86d3f"/>
+     <circle cx="56" cy="78" r="18" fill="#e8b48a"/><circle cx="244" cy="78" r="18" fill="#e8b48a"/>
+     <ellipse cx="150" cy="196" rx="124" ry="126" fill="#c8895a"/><ellipse cx="150" cy="232" rx="64" ry="50" fill="#f3d2b3"/>`,
+   nose:`<ellipse cx="0" cy="0" rx="16" ry="11" fill="#3b2314"/><ellipse cx="-5" cy="-4" rx="4" ry="2.5" fill="#fff" opacity=".6"/>`,
+   mouth:`<path d="M0 -14v10M-18 -2q9 12 18 0q9 12 18 0" stroke="#3b2314" stroke-width="5" fill="none" stroke-linecap="round"/>`},
+  {n:'うさぎさん',skin:'#fff7f7',base:`<ellipse cx="100" cy="56" rx="26" ry="70" fill="#fff7f7" stroke="#e9cfd6" stroke-width="3"/><ellipse cx="200" cy="56" rx="26" ry="70" fill="#fff7f7" stroke="#e9cfd6" stroke-width="3"/>
+     <ellipse cx="100" cy="60" rx="12" ry="52" fill="#ffc9de"/><ellipse cx="200" cy="60" rx="12" ry="52" fill="#ffc9de"/>
+     <ellipse cx="150" cy="200" rx="120" ry="122" fill="#fff7f7" stroke="#e9cfd6" stroke-width="3"/>`,
+   nose:`<path d="M-9 -5h18l-9 10z" fill="#ff8fab"/>`,
+   mouth:`<path d="M0 -10v8M-16 0q8 12 16 0q8 12 16 0" stroke="#c2255c" stroke-width="4" fill="none" stroke-linecap="round"/>`}
+];
+const FP_EYE=`<ellipse cx="0" cy="0" rx="12" ry="16" fill="#2b2b3d"/><circle cx="4" cy="-6" r="4.5" fill="#fff"/><circle cx="-4" cy="6" r="2" fill="#fff" opacity=".7"/>`;
+function fukuPartSvg(face,k){
+  const d={eyeL:FP_EYE,eyeR:FP_EYE,eyes:`<g transform="translate(-42 0)">${FP_EYE}</g><g transform="translate(42 0)">${FP_EYE}</g>`,
+    browL:`<path d="M-24 6Q0 -12 24 4" stroke="#4a3426" stroke-width="8" fill="none" stroke-linecap="round"/>`,
+    browR:`<path d="M-24 4Q0 -12 24 6" stroke="#4a3426" stroke-width="8" fill="none" stroke-linecap="round"/>`,
+    nose:face.nose,mouth:face.mouth,
+    cheekL:`<ellipse cx="0" cy="0" rx="18" ry="11" fill="#ff8fab" opacity=".65"/>`,cheekR:`<ellipse cx="0" cy="0" rx="18" ry="11" fill="#ff8fab" opacity=".65"/>`}[k];
+  const w=k==='eyes'?120:k==='mouth'?72:60;
+  return {w,h:48,svg:`<svg viewBox="${-w/2} -24 ${w} 48">${d}</svg>`};
+}
+let FK=null, fd=null, faceBag=[];
+function fukuRound(){
+  const lv=fukuLevel();
+  if(!faceBag.length) faceBag=shuffle(FACES);
+  const face=faceBag.shift(), keys=FUKU_SET[lv], free=lv>=4;
+  FK={lv,face,free,parts:[],targets:{},done:0,n:keys.length,finT:0};
+  FK.faceEl=document.createElement('div'); FK.faceEl.className='face';
+  FK.faceEl.innerHTML=`<svg viewBox="0 0 300 340"><ellipse cx="150" cy="330" rx="100" ry="10" fill="rgba(0,0,0,.12)"/>${face.base}</svg>`;
+  FK.tray=document.createElement('div'); FK.tray.className='tray';
+  fukuEl.append(FK.tray,FK.faceEl);
+  keys.forEach(k=>{
+    const ps=fukuPartSvg(face,k);
+    if(!free&&lv<=2){ const g=document.createElement('div'); g.className='ghostp'; g.innerHTML=ps.svg; g.dataset.k=k; fukuEl.appendChild(g); FK.targets[k]={g} }
+    else FK.targets[k]={};
+    FK.targets[k].filled=false;
+  });
+  shuffle(keys).forEach(k=>{
+    const ps=fukuPartSvg(face,k), el=document.createElement('div'); el.className='fp'; el.innerHTML=ps.svg;
+    fukuEl.appendChild(el); FK.parts.push({el,k,slot:k,w:ps.w,h:ps.h,placed:false});
+  });
+  fukuLayout();
+}
+function fukuLayout(){
+  if(!FK) return;
+  const W=board.clientWidth, H=board.clientHeight, gap=14, side=W>H*1.25;
+  let fA,tA;
+  if(side){const tw=Math.max(160,W*.3);fA={x:0,y:0,w:W-tw-gap,h:H};tA={x:W-tw,y:0,w:tw,h:H}}
+  else{const th=Math.max(110,H*.28);fA={x:0,y:0,w:W,h:H-th-gap};tA={x:0,y:H-th,w:W,h:th}}
+  const k=Math.min(fA.w*.94/300,fA.h*.96/340,2.2), fw=300*k, fh=340*k;
+  FK.k=k; FK.fx=fA.x+(fA.w-fw)/2; FK.fy=fA.y+(fA.h-fh)/2;
+  Object.assign(FK.faceEl.style,{left:FK.fx+'px',top:FK.fy+'px',width:fw+'px',height:fh+'px'});
+  Object.assign(FK.tray.style,{left:tA.x+'px',top:tA.y+'px',width:tA.w+'px',height:tA.h+'px'});
+  Object.entries(FK.targets).forEach(([key,t])=>{
+    const [x,y]=FUKU_POS[key]; t.x=FK.fx+x*k; t.y=FK.fy+y*k;
+    if(t.g){const ps=fukuPartSvg(FK.face,key);Object.assign(t.g.style,{left:t.x-ps.w*k/2+'px',top:t.y-ps.h*k/2+'px',width:ps.w*k+'px',height:ps.h*k+'px'})}
+  });
+  const n=FK.parts.length; let best={sc:0,c:n};
+  for(let c=1;c<=n;c++){const r=Math.ceil(n/c),sc=Math.min((tA.w-20)/c/(120*k),(tA.h-20)/r/(56*k),1);if(sc>best.sc)best={sc,c}}
+  const cols=best.c, cw=(tA.w-20)/cols, rh=(tA.h-20)/Math.ceil(n/cols);
+  FK.sc=Math.max(.5,best.sc);
+  FK.parts.forEach((p,i)=>{
+    Object.assign(p.el.style,{width:p.w*k+'px',height:p.h*k+'px'});
+    const r=Math.floor(i/cols), c=i%cols, inRow=Math.min(cols,n-r*cols), off=(cols-inRow)*cw/2;
+    p.home={x:tA.x+10+off+cw*c+cw/2,y:tA.y+10+rh*r+rh/2};
+    if(fd&&fd.p===p) return;
+    if(p.placed){ const pos=p.free?{x:FK.fx+p.free[0]*k,y:FK.fy+p.free[1]*k}:FK.targets[p.slot]; fukuSet(p,pos.x,pos.y,1) }
+    else fukuSet(p,p.home.x,p.home.y,FK.sc);
+  });
+}
+function fukuSet(p,x,y,sc){p.el.style.left=(x-p.w*FK.k/2)+'px';p.el.style.top=(y-p.h*FK.k/2)+'px';p.at={x,y};if(sc!=null)p.el.style.setProperty('--sc',sc)}
+function fukuDown(e){
+  const el=e.target.closest('#fuku .fp'); if(!FK||!el||won||fd) return;
+  const p=FK.parts.find(q=>q.el===el); if(!p) return;
+  if(p.placed&&!FK.free) return;                 // ピタッとはまったパーツは動かさない
+  e.preventDefault(); ac(); tick(); clearTimeout(FK.finT);
+  if(p.placed){p.placed=false;FK.done--;p.free=null}
+  const q=lp(e), sc=parseFloat(p.el.style.getPropertyValue('--sc'))||1;
+  fd={p,id:e.pointerId,off:{x:(q.x-p.at.x)/sc,y:(q.y-p.at.y)/sc}};
+  el.classList.remove('back','snap','placed'); el.classList.add('drag'); el.style.setProperty('--sc',1);
+  fukuSet(p,q.x-fd.off.x,q.y-fd.off.y);
+}
+function fukuNearest(p){   // あいている場所（左右の目・まゆ・ほっぺは どちらでもOK）
+  const keys=Object.keys(FK.targets).filter(k=>!FK.targets[k].filled&&(k===p.slot||(FUKU_GROUP[p.slot]&&FUKU_GROUP[k]===FUKU_GROUP[p.slot])));
+  let best=null,bd=1e9; keys.forEach(k=>{const t=FK.targets[k],d=Math.hypot(p.at.x-t.x,p.at.y-t.y);if(d<bd){bd=d;best=k}});
+  return {k:best,d:bd};
+}
+function fukuMove(e){
+  if(e.pointerId!==fd.id) return;
+  const q=lp(e), p=fd.p; fukuSet(p,q.x-fd.off.x,q.y-fd.off.y);
+  if(FK.free) return;
+  const {k,d}=fukuNearest(p), R=300*FK.k*({1:.24,2:.18,3:.13}[FK.lv]);
+  Object.values(FK.targets).forEach(t=>t.g&&t.g.classList.remove('near'));
+  if(!k) return;
+  if(FK.targets[k].g&&d<R*1.8) FK.targets[k].g.classList.add('near');
+  if(d<R) fukuPlace(p,k);                        // 近づいたら、きまった場所へ ピタッ
+}
+function fukuPlace(p,k){
+  fd=null; const t=FK.targets[k];
+  if(k!==p.slot){const o=FK.parts.find(q=>q.slot===k&&q!==p); if(o) o.slot=p.slot; p.slot=k}
+  t.filled=true; if(t.g){t.g.classList.remove('near');t.g.style.display='none'}
+  p.placed=true; p.el.classList.remove('drag'); p.el.classList.add('snap');
+  fukuSet(p,t.x,t.y,1); setTimeout(()=>{p.el.classList.remove('snap');p.el.classList.add('placed')},190);
+  tone(700,0,.06,'square',.08); chime(FK.done); burst({x:t.x+board.getBoundingClientRect().left,y:t.y+board.getBoundingClientRect().top});
+  fukuCount();
+}
+function fukuCount(){
+  FK.done=FK.parts.filter(q=>q.placed).length;
+  dinoEl.style.setProperty('--p',(.06+.3*FK.done/FK.n).toFixed(3));
+  clearTimeout(FK.finT);
+  if(FK.done===FK.n) FK.finT=setTimeout(fukuFinish,FK.free?1400:350);   // ★4は少し待ってから（直したいときのため）
+}
+function fukuUp(e){
+  if(e.pointerId!==fd.id) return;
+  const p=fd.p; fd=null; p.el.classList.remove('drag');
+  Object.values(FK.targets).forEach(t=>t.g&&t.g.classList.remove('near'));
+  if(FK.free){   // むかしながら：顔の上ならそのまま置く
+    const cx=(p.at.x-FK.fx)/FK.k, cy=(p.at.y-FK.fy)/FK.k;
+    if(((cx-150)/130)**2+((cy-195)/140)**2<=1){
+      p.placed=true; p.free=[cx,cy]; p.el.classList.add('placed'); p.el.style.setProperty('--sc',1);
+      tone(600,0,.06,'square',.07); fukuCount(); return;
+    }
+  }
+  p.el.classList.add('back'); fukuSet(p,p.home.x,p.home.y,FK.sc);
+  setTimeout(()=>p.el.classList.remove('back'),380);
+}
+function sfxLaugh(){[0,.18,.36,.54].forEach((t,i)=>{tone(520-i*30,t,.12,'triangle',.18,380-i*20)})}
+function fukuFinish(){
+  if(!FK||won) return; won=true;
+  if(FK.free){ fukuEl.classList.add('laugh'); sfxLaugh(); sayName('おもしろい かお！','ja-JP',win) }
+  else{ fukuEl.classList.add('happy'); sayName(FK.face.n,'ja-JP',win) }
+}
+
 /* ===== みち ===== */
 const roadSvg=$('#road');
 let R=null, md=null;
@@ -2216,6 +2408,7 @@ function win(){
   if(game==='kt'){clears.kt++;save('ktN',clears.kt)}
   if(game==='nuri'){clears.nuri++;save('nuriN',clears.nuri)}
   if(game==='tet'){clears.tet++;save('tetN',clears.tet)}
+  if(game==='fuku'){clears.fuku++;save('fukuN',clears.fuku)}
   fanfare(); const wt=sayTok;
   setTimeout(()=>{if(wt===sayTok&&won)utter(`できたね！ ${dino.n}だよ！`)},1700);
   setTimeout(()=>{document.body.classList.add('won');dinoEl.className='reveal'+(dino.fly?' fly':'');confetti()},450);
@@ -2297,6 +2490,8 @@ document.querySelectorAll('#gameSeg button').forEach(b=>b.addEventListener('clic
       const lv=nuriLevel(); clears.nuri=lv>=NURI_LV.length?0:NURI_LV[lv]; save('nuriN',clears.nuri); ac(); tick(); newRound();
     }else if(game==='tet'){
       const lv=tetLevel(); clears.tet=lv>=TET_LV.length?0:TET_LV[lv]; save('tetN',clears.tet); ac(); tick(); newRound();
+    }else if(game==='fuku'){
+      const lv=fukuLevel(); clears.fuku=lv>=FUKU_LV.length?0:FUKU_LV[lv]; save('fukuN',clears.fuku); ac(); tick(); newRound();
     }
     return;
   }
