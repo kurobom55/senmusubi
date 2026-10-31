@@ -137,6 +137,22 @@ body.michi .col,body.michi #countBtn,body.michi #modeSeg{display:none}
 body.naka #naka{display:block}
 body.naka .col,body.naka #countBtn{display:none}
 
+/* すべりだい */
+#sl{position:absolute;inset:0;display:none}
+body.sl #sl{display:block}
+body.sl .col,body.sl #countBtn,body.sl #modeSeg{display:none}
+#sl > svg.slide{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+#sl .tray{position:absolute;background:rgba(255,255,255,.45);border:4px dashed rgba(255,255,255,.9);border-radius:26px}
+#sl .it{position:absolute;z-index:3;transform-origin:50% 50%;filter:drop-shadow(0 4px 3px rgba(40,60,90,.28))}
+#sl .it svg{width:100%;height:100%;display:block;overflow:visible}
+#sl .it.drag{z-index:10;filter:drop-shadow(0 12px 10px rgba(40,60,90,.35))}
+#sl .it.back{transition:left .35s cubic-bezier(.3,1.4,.5,1),top .35s cubic-bezier(.3,1.4,.5,1)}
+#sl .here{position:absolute;border-radius:50%;border:6px dashed #ffd23f;pointer-events:none;animation:ringp 1.2s ease-in-out infinite}
+#sl .here.on{background:rgba(255,210,63,.35);border-style:solid}
+#sl .bucket{position:absolute;pointer-events:none;z-index:4}
+#sl .bucket svg{width:100%;height:100%;display:block;overflow:visible}
+#sl .bucket.pop{animation:yay .5s ease}
+
 /* ふくわらい */
 #fuku{position:absolute;inset:0;display:none}
 body.fuku #fuku{display:block}
@@ -335,8 +351,11 @@ body.naka #lines{z-index:1}
   #top{gap:4px;max-width:calc(100vw - 8px)}
   .seg{padding:3px;gap:0}
   .seg button,#top > button{font-size:13px;padding:5px 7px}
-  #gameSeg{display:grid;grid-template-columns:repeat(5,auto);justify-content:center}
-  #gameSeg button[data-g="fuku"]{letter-spacing:-.05em}   /* スマホは 4つずつ2だん */
+  /* スマホ：遊びのボタンは1列。指で左右にスライドできる */
+  #gameSeg{display:flex;flex-wrap:nowrap;justify-content:flex-start;width:100%;overflow-x:auto;overscroll-behavior-x:contain;touch-action:pan-x;scrollbar-width:none;-webkit-overflow-scrolling:touch;mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 14px),transparent 100%)}
+  #gameSeg::-webkit-scrollbar{display:none}
+  #gameSeg button{flex:0 0 auto}
+  #gameSeg button[data-g="fuku"],#gameSeg button[data-g="sl"]{letter-spacing:-.05em}   /* スマホは 4つずつ2だん */
   #gameSeg button{font-size:12px;padding:5px 4px}
   #gameSeg sup{font-size:7px;margin-left:0}
   .seg sup{font-size:7px;margin-left:1px}
@@ -500,7 +519,7 @@ body.naka #lines{z-index:1}
 </div>
 
 <div id="dino" aria-hidden="true"></div>
-<div id="board"><div class="col left" id="leftCol"></div><div class="col right" id="rightCol"></div><svg id="road"></svg><div id="naka"></div><div id="oku"></div><div id="pz"></div><div id="kt"></div><div id="nuri"></div><div id="tet"></div><div id="fuku"></div></div>
+<div id="board"><div class="col left" id="leftCol"></div><div class="col right" id="rightCol"></div><svg id="road"></svg><div id="naka"></div><div id="oku"></div><div id="pz"></div><div id="kt"></div><div id="nuri"></div><div id="tet"></div><div id="fuku"></div><div id="sl"></div></div>
 <svg id="lines"><g id="linesG"></g></svg>
 
 <div id="top">
@@ -515,6 +534,7 @@ body.naka #lines{z-index:1}
     <button type="button" data-g="nuri">ぬりえ</button>
     <button type="button" data-g="tet">ブロック</button>
     <button type="button" data-g="fuku">ふくわらい</button>
+    <button type="button" data-g="sl">すべりだい</button>
   </div>
   <div class="seg" id="kumiSeg">
     <button type="button" data-k="mix">まぜこぜ</button>
@@ -775,9 +795,9 @@ const board=$('#board'), leftCol=$('#leftCol'), rightCol=$('#rightCol'), linesG=
 function load(k,d){try{const v=localStorage.getItem('senmusubi_'+k);return v==null?d:JSON.parse(v)}catch(e){return d}}
 function save(k,v){try{localStorage.setItem('senmusubi_'+k,JSON.stringify(v))}catch(e){}}
 let pairCount=load('n',3), soundOn=load('snd',true), voiceOn=load('voice',true), mode=load('mode','e'), game=load('game',null),
-    clears={kazu:load('kazuN',0),abc:load('abcN',0),naka:load('nakaN',0),oku:load('okuN',0),pz:load('pzN',0),robo:load('roboN',0),kt:load('ktN',0),nuri:load('nuriN',0),tet:load('tetN',0),fuku:load('fukuN',0)};
+    clears={kazu:load('kazuN',0),abc:load('abcN',0),naka:load('nakaN',0),oku:load('okuN',0),pz:load('pzN',0),robo:load('roboN',0),kt:load('ktN',0),nuri:load('nuriN',0),tet:load('tetN',0),fuku:load('fukuN',0),sl:load('slN',0)};
 if(mode==='michi'){game=game||'michi';mode='e'}
-if(!['yoko','naka','michi','oku','pz','robo','kt','nuri','tet','fuku'].includes(game)) game='yoko';
+if(!['yoko','naka','michi','oku','pz','robo','kt','nuri','tet','fuku','sl'].includes(game)) game='yoko';
 if(!MODES[mode]) mode='e';
 const stars=n=>'<sup>★'+n+'</sup>';   // レベル表示（★2 のように短く）
 function fitBoard(){board.style.top=($('#top').getBoundingClientRect().bottom+8)+'px'}
@@ -933,6 +953,7 @@ function sizeCards(){
   if(game==='nuri'){nuriLayout();return}
   if(game==='tet'){tetLayout();return}
   if(game==='fuku'){fukuLayout();return}
+  if(game==='sl'){slLayout();return}
   if(game==='michi'){ if(R && !md && !R.done && (Math.abs(w-R.W)>40||Math.abs(h-R.H)>40)) setupRoad(); return; }
   const s=Math.max(60,Math.min(h/pairCount-20,w*.27,190));
   document.documentElement.style.setProperty('--cardsize',s+'px');
@@ -940,6 +961,7 @@ function sizeCards(){
 }
 function updateTop(){
   document.querySelectorAll('#gameSeg button').forEach(b=>b.classList.toggle('on',b.dataset.g===game));
+  requestAnimationFrame(()=>{try{const on=$('#gameSeg button.on'),gs=$('#gameSeg');if(on&&gs.scrollWidth>gs.clientWidth){const a=on.getBoundingClientRect(),g=gs.getBoundingClientRect();gs.scrollLeft+=(a.left+a.width/2)-(g.left+g.width/2)}}catch(e){}});   // 選んでいるボタンを まんなかに
   document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.m===mode));
   $('#gameSeg [data-g="naka"]').innerHTML='まんなか'+stars(nakaLevel());
   $('#gameSeg [data-g="michi"]').innerHTML='みち'+stars(michiLevel());
@@ -951,6 +973,7 @@ function updateTop(){
   $('#gameSeg [data-g="nuri"]').innerHTML='ぬりえ'+stars(nuriLevel());
   $('#gameSeg [data-g="tet"]').innerHTML='ブロック'+stars(tetLevel());
   $('#gameSeg [data-g="fuku"]').innerHTML='ふくわらい'+stars(fukuLevel());
+  $('#gameSeg [data-g="sl"]').innerHTML='すべりだい'+stars(slLevel());
   $('#modeSeg [data-m="kazu"]').innerHTML='123'+(game==='yoko'?stars(level('kazu')):'');
   $('#modeSeg [data-m="abc"]').innerHTML='ABC'+(game==='yoko'?stars(level('abc')):'');
   $('#countBtn').textContent='ペア '+pairCount;
@@ -970,12 +993,19 @@ function newRound(){
   document.body.classList.toggle('nuri',game==='nuri');
   document.body.classList.toggle('tet',game==='tet');
   document.body.classList.toggle('fuku',game==='fuku');
+  document.body.classList.toggle('sl',game==='sl');
   nakaEl.innerHTML=''; NK=null; okuEl.innerHTML=''; OK=null; od=null;
   pzEl.innerHTML=''; pzEl.classList.remove('whole'); PZ=null; pd=null;
   ktStop(); ktEl.innerHTML=''; KT=null; kd=null;
   nuriEl.innerHTML=''; NU=null; nd=null;
   tetEl.innerHTML=''; TT=null; td=null;
   fukuEl.innerHTML=''; fukuEl.className=''; FK=null; fd=null;
+  slStop(); slEl.innerHTML=''; SL=null; sd=null;
+  if(game==='sl'){
+    leftCol.innerHTML=''; rightCol.innerHTML=''; roadSvg.innerHTML=''; R=null;
+    dinoEl.className='hint'; dinoEl.innerHTML=dino.svg; dinoEl.style.setProperty('--p','.06');
+    updateTop(); slRound(); return;
+  }
   if(game==='fuku'){
     leftCol.innerHTML=''; rightCol.innerHTML=''; roadSvg.innerHTML=''; R=null;
     dinoEl.className='hint'; dinoEl.innerHTML=dino.svg; dinoEl.style.setProperty('--p','.06');
@@ -1051,6 +1081,7 @@ board.addEventListener('pointerdown',e=>{
   if(game==='nuri'){nuriDown(e);return}
   if(game==='tet'){tetDown(e);return}
   if(game==='fuku'){fukuDown(e);return}
+  if(game==='sl'){slDown(e);return}
   const card=e.target.closest('.card');
   if(!card||card.classList.contains('done')||drag||won) return;
   e.preventDefault(); ac(); tick();
@@ -1066,6 +1097,7 @@ window.addEventListener('pointermove',e=>{
   if(nd){nuriMove(e);return}
   if(td){tetMove(e);return}
   if(fd){fukuMove(e);return}
+  if(sd){slMove(e);return}
   if(!drag||e.pointerId!==drag.id) return;
   setLine(drag.g,drag.p,{x:e.clientX,y:e.clientY});
   const t=findTarget(e.clientX,e.clientY,drag.card.dataset.side);
@@ -1080,6 +1112,7 @@ function endDrag(e){
   if(nd){nuriUp(e);return}
   if(td){tetUp(e);return}
   if(fd){fukuUp(e);return}
+  if(sd){slUp(e);return}
   if(!drag||e.pointerId!==drag.id) return;
   const {card,g}=drag; drag=null; clearHover(); card.classList.remove('active');
   const t=e.type==='pointerup'?findTarget(e.clientX,e.clientY,card.dataset.side):null;
@@ -2211,6 +2244,197 @@ function fukuFinish(){
   else{ fukuEl.classList.add('happy'); sayName(FK.face.n,'ja-JP',win) }
 }
 
+/* ===== すべりだい（てっぺんに置くと、すべり落ちる） ===== */
+const slEl=$('#sl');
+/* ★1: なめらか / ★2: なみなみ（山でぴょん） / ★3: さいごはジャンプ台 → バケツへ
+   数字は「その★になるのに必要なクリア回数」 */
+const SL_LV=[0,6,12];
+const SL_PATH={1:[[.06,.16],[.22,.27],[.38,.55],[.54,.80],[.68,.88],[.74,.885]],
+               2:[[.06,.14],[.18,.26],[.28,.40],[.36,.42],[.45,.56],[.53,.62],[.61,.64],[.69,.80],[.76,.875]],
+               3:[[.05,.12],[.18,.26],[.32,.48],[.42,.52],[.52,.62],[.62,.70],[.70,.69],[.76,.63]]};
+function slLevel(){let lv=1;SL_LV.forEach((v,i)=>{if(clears.sl>=v)lv=i+1});return lv}
+let SL=null, sd=null, slRaf=0;
+function slStop(){if(slRaf)cancelAnimationFrame(slRaf);slRaf=0}
+const BALL=c=>`<svg viewBox="-50 -50 100 100"><circle r="46" fill="${c}"/><path d="M-46 0a46 46 0 0 0 92 0" fill="${shade(c,.8)}"/><path d="M0 -46v92M-46 0h92" stroke="#fff" stroke-width="7" opacity=".85"/><circle cx="-16" cy="-18" r="9" fill="#fff" opacity=".5"/></svg>`;
+const BLOCK=c=>`<svg viewBox="-50 -50 100 100"><rect x="-44" y="-44" width="88" height="88" rx="10" fill="${c}"/><rect x="-44" y="22" width="88" height="22" rx="8" fill="${shade(c,.8)}"/><rect x="-36" y="-36" width="72" height="12" rx="6" fill="#fff" opacity=".35"/></svg>`;
+function slItems(lv){
+  const cols=shuffle(['#ff595e','#ffca3a','#8ac926','#1982c4','#9b5de5','#ff924c']);
+  const friends=shuffle(CP_CHARS.map(c=>({svg:c.svg,n:c.n})).concat([{svg:itemBy('chick').svg,n:'ひよこ'}]));
+  const list=[{kind:'ball',svg:BALL(cols[0]),n:'ボール'},{kind:'block',svg:BLOCK(cols[1]),n:'つみき'},{kind:'car',svg:itemBy('car').svg,n:'くるま'},
+              {kind:'friend',...friends[0]},{kind:'ball',svg:BALL(cols[2]),n:'ボール'}];
+  if(lv>=2) list.push({kind:'friend',...friends[1]});
+  return shuffle(list);
+}
+function catmull(P,n){   // 点をなめらかにつないだ線
+  const out=[];
+  for(let i=0;i<P.length-1;i++){
+    const p0=P[Math.max(0,i-1)],p1=P[i],p2=P[i+1],p3=P[Math.min(P.length-1,i+2)];
+    for(let k=0;k<n;k++){const t=k/n,t2=t*t,t3=t2*t;
+      out.push([.5*((2*p1[0])+(-p0[0]+p2[0])*t+(2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2+(-p0[0]+3*p1[0]-3*p2[0]+p3[0])*t3),
+                .5*((2*p1[1])+(-p0[1]+p2[1])*t+(2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2+(-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3)])}
+  }
+  out.push(P[P.length-1]); return out;
+}
+function slRound(){
+  const lv=slLevel();
+  SL={lv,items:[],landed:0,slid:new Set(),done:false,pile:0,inBucket:0};
+  SL.svg=document.createElementNS(NS,'svg'); SL.svg.setAttribute('class','slide');
+  SL.tray=document.createElement('div'); SL.tray.className='tray';
+  SL.here=document.createElement('div'); SL.here.className='here';
+  slEl.append(SL.svg,SL.tray,SL.here);
+  if(lv>=3){SL.bucket=document.createElement('div');SL.bucket.className='bucket';
+    SL.bucket.innerHTML=`<svg viewBox="0 0 100 90"><path d="M8 20h84l-10 66H18z" fill="#4dabf7"/><rect x="2" y="12" width="96" height="14" rx="7" fill="#1c7ed6"/><path d="M20 40h60M22 56h56" stroke="#fff" stroke-width="4" opacity=".4"/></svg>`;slEl.appendChild(SL.bucket)}
+  slItems(lv).forEach(d=>{
+    const el=document.createElement('div'); el.className='it'; el.innerHTML=d.svg; el.setAttribute('aria-label',d.n);
+    slEl.appendChild(el); SL.items.push({el,...d,state:'tray',rot:0});
+  });
+  slLayout();
+  let last=performance.now();
+  const loop=now=>{ if(!SL) return; const dt=Math.min(.04,(now-last)/1000); last=now; slStep(dt); slRaf=requestAnimationFrame(loop) };
+  slStop(); slRaf=requestAnimationFrame(loop);
+}
+function slLayout(){
+  if(!SL) return;
+  const W=board.clientWidth, H=board.clientHeight, side=W>H*1.2, gap=12;
+  let rA,tA;
+  if(side){const tw=Math.max(130,W*.2);tA={x:0,y:0,w:tw,h:H};rA={x:tw+gap,y:0,w:W-tw-gap,h:H}}
+  else{const th=Math.max(110,H*.22);rA={x:0,y:0,w:W,h:H-th-gap};tA={x:0,y:H-th,w:W,h:th}}
+  // すべり台の大きさ（横長気味の領域）
+  const sw=Math.min(rA.w,rA.h*1.5), sh=sw/1.5, sx=rA.x+(rA.w-sw)/2, sy=rA.y+(rA.h-sh)/2;
+  SL.rA=rA; SL.size=sw; SL.isz=Math.max(44,Math.min(sw*.1,90)); SL.g=sw*2.2; SL.ground=sy+sh*.97;
+  const P=SL_PATH[SL.lv].map(([x,y])=>[sx+x*sw,sy+y*sh]);
+  const pts=catmull(P,24), cum=[0];
+  for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
+  SL.pts=pts; SL.cum=cum; SL.len=cum[cum.length-1]; SL.sx=sx; SL.sy=sy; SL.sw=sw; SL.sh=sh;
+  // 絵：はしご・台・すべり台
+  const d='M'+pts.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join('L'), tw2=SL.isz*1.15, st=pts[0], en=pts[pts.length-1];
+  const legs=[.35,.7].map(f=>{const i=Math.round(f*(pts.length-1)),p=pts[i];return `<path d="M${p[0]} ${p[1]+tw2*.3}V${SL.ground}" stroke="#adb5bd" stroke-width="${tw2*.14}" stroke-linecap="round"/>`}).join('')
+     +(SL.lv<3?'':`<path d="M${en[0]} ${en[1]+tw2*.3}V${SL.ground}" stroke="#adb5bd" stroke-width="${tw2*.14}" stroke-linecap="round"/>`);
+  const lx=st[0]-tw2*.2, ladder=`<rect x="${lx-tw2*.55}" y="${st[1]+tw2*.15}" width="${tw2*1.1}" height="${SL.ground-st[1]-tw2*.15}" rx="${tw2*.12}" fill="#4dabf7"/>`
+     +Array.from({length:5},(_,i)=>{const y=st[1]+tw2*.5+i*(SL.ground-st[1]-tw2*.6)/5;return `<rect x="${lx-tw2*.45}" y="${y}" width="${tw2*.9}" height="${tw2*.16}" rx="${tw2*.06}" fill="#8ac926"/>`}).join('');
+  SL.svg.setAttribute('width',W); SL.svg.setAttribute('height',H);
+  SL.svg.innerHTML=`<ellipse cx="${(st[0]+en[0])/2}" cy="${SL.ground}" rx="${sw*.5}" ry="${sw*.02}" fill="rgba(0,0,0,.12)"/>${legs}${ladder}
+    <path d="${d}" stroke="${shade('#ff7a1a',.8)}" stroke-width="${tw2*1.05}" fill="none" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 ${tw2*.18})"/>
+    <path d="${d}" stroke="#ff7a1a" stroke-width="${tw2}" fill="none" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 ${tw2*.12})"/>
+    <path d="${d}" stroke="#ff9a4d" stroke-width="${tw2*.62}" fill="none" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 ${tw2*.12})"/>
+    <path d="${d}" stroke="#fff" stroke-width="${tw2*.08}" fill="none" stroke-linecap="round" opacity=".35" transform="translate(0 ${tw2*-.12})"/>`;
+  const hr=SL.isz*1.3; Object.assign(SL.here.style,{left:st[0]-hr/2+'px',top:st[1]-SL.isz*.55-hr/2+'px',width:hr+'px',height:hr+'px'});
+  if(SL.bucket){   // ジャンプしたら どこに落ちるか先に計算して、そこにバケツを置く
+    const L=slLaunch(), bw=SL.isz*2, en2=pts[pts.length-1];
+    const bx=Math.max(en2[0]+bw*.9,Math.min(L.x,rA.x+rA.w-bw*.6)); SL.bk={x:bx,y:SL.ground,w:bw};
+    Object.assign(SL.bucket.style,{left:bx-bw/2+'px',top:SL.ground-bw*.9+'px',width:bw+'px',height:bw*.9+'px'});
+  }
+  Object.assign(SL.tray.style,{left:tA.x+'px',top:tA.y+'px',width:tA.w+'px',height:tA.h+'px'});
+  const n=SL.items.length; let best={c:n,s:0};
+  for(let c=1;c<=n;c++){const r=Math.ceil(n/c),s2=Math.min((tA.w-20)/c,(tA.h-20)/r)*.78;if(s2>best.s)best={c,s:s2}}
+  const cols=best.c, cw=(tA.w-20)/cols, rh=(tA.h-20)/Math.ceil(n/cols);
+  SL.items.forEach((it,i)=>{
+    const r=Math.floor(i/cols), c=i%cols, inRow=Math.min(cols,n-r*cols), off=(cols-inRow)*cw/2;
+    it.home={x:tA.x+10+off+cw*c+cw/2,y:tA.y+10+rh*r+rh/2};
+    Object.assign(it.el.style,{width:SL.isz+'px',height:SL.isz+'px'});
+    if(it.state==='tray') slSet(it,it.home.x,it.home.y,0);
+  });
+}
+function slSet(it,x,y,a){it.x=x;it.y=y;it.el.style.left=(x-SL.isz/2)+'px';it.el.style.top=(y-SL.isz/2)+'px';it.el.style.transform=`rotate(${a||0}rad)`}
+function slAt(s){   // 道のりsの場所・向き
+  const c=SL.cum; let i=1; while(i<c.length-1&&c[i]<s) i++;
+  const a=SL.pts[i-1],b=SL.pts[i],t=Math.max(0,Math.min(1,(s-c[i-1])/((c[i]-c[i-1])||1)));
+  const x=a[0]+(b[0]-a[0])*t, y=a[1]+(b[1]-a[1])*t, ang=Math.atan2(b[1]-a[1],b[0]-a[0]);
+  return{x,y,ang};
+}
+function slSpeed(y){return Math.max(SL.sw*.32,Math.sqrt(2*SL.g*Math.max(0,y-SL.pts[0][1]))*.82)}   // 止まらないように最低の速さあり
+function slLaunch(){   // ジャンプ台からの着地点
+  const e=slAt(SL.len), v=slSpeed(e.y);
+  let x=e.x,y=e.y-SL.isz*.5,vx=v*Math.cos(e.ang),vy=v*Math.sin(e.ang);
+  for(let i=0;i<600&&y<SL.ground-SL.isz*.5;i++){x+=vx/120;y+=vy/120;vy+=SL.g/120}
+  return{x,y};
+}
+function slStart(it){
+  it.state='slide'; it.s=0; it.hop=0; it.el.classList.remove('back','drag');
+  SL.here.classList.remove('on');
+  tone(320,0,.9,'triangle',.05,900);                 // シュー
+  if(it.kind==='friend') utter('わーい！');
+  else if(it.kind==='car') tone(523,.05,.12,'square',.06);
+}
+function slStep(dt){
+  SL.items.forEach(it=>{
+    if(it.state==='slide'){
+      const p=slAt(it.s), v=slSpeed(p.y); it.s+=v*dt;
+      // なみの山（上りから下りへ）で、ぴょん
+      const nx=slAt(Math.min(SL.len,it.s+2));
+      if(it.prevAng!=null&&it.prevAng<-.05&&nx.ang>.05&&it.hop<=0){it.hop=1;tone(880,0,.08,'sine',.08)}
+      it.prevAng=nx.ang;
+      if(it.hop>0) it.hop=Math.max(0,it.hop-dt*3.2);
+      const lift=Math.sin(it.hop*Math.PI)*SL.isz*.5;
+      const nX=-Math.sin(p.ang), nY=Math.cos(p.ang);   // 面の外向き（上）
+      const cx=p.x+nX*(-SL.isz*.5)-0, cy=p.y-nY*SL.isz*.5-lift;
+      it.rot=it.kind==='ball'?(it.rot+v*dt/(SL.isz*.5)):p.ang;
+      slSet(it,cx,cy,it.kind==='friend'?p.ang*.6+Math.sin(it.s*.05)*.15:it.rot);
+      if(it.s>=SL.len){
+        if(SL.lv>=3){
+          it.state='fly'; it.vy=v*Math.sin(p.ang);
+          const yg=SL.ground-SL.isz*.5, t=(-it.vy+Math.sqrt(it.vy*it.vy+2*SL.g*Math.max(1,yg-it.y)))/SL.g;
+          it.vx=(SL.bk.x-it.x)/Math.max(.2,t);           // かならずバケツに入る速さで とぶ
+          tone(660,0,.15,'triangle',.1,1200);
+        }
+        else{ it.state='floor'; it.vx=v*Math.max(.3,Math.cos(p.ang)); slFloorTarget(it) }
+      }
+    }else if(it.state==='fly'){
+      it.vy+=SL.g*dt; const x=it.x+it.vx*dt, y=it.y+it.vy*dt;
+      it.rot+=dt*(it.kind==='ball'?8:4);
+      if(y>=SL.ground-SL.isz*.5){ slLand(it,true); return }
+      slSet(it,x,y,it.rot);
+    }else if(it.state==='floor'){
+      const dx=it.tx-it.x;
+      if(Math.abs(dx)<2){slLand(it,false);return}
+      const step=Math.sign(dx)*Math.min(Math.abs(dx),Math.max(60,Math.abs(dx)*4)*dt);
+      it.rot+=it.kind==='ball'?step/(SL.isz*.5):0;
+      slSet(it,it.x+step,it.ty,it.kind==='ball'?it.rot:0);
+    }
+  });
+}
+function slFloorTarget(it){   // 床に じゅんばんに並ぶ（右はしから左へ。いっぱいになったら2だんめ）
+  const slot=SL.pile++, maxX=SL.rA.x+SL.rA.w-SL.isz*.6, minX=SL.pts[0][0]+SL.isz*1.2, step=SL.isz*1.0;
+  const perRow=Math.max(1,Math.floor((maxX-minX)/step)+1), row=Math.floor(slot/perRow), col=slot%perRow;
+  it.tx=maxX-col*step; it.ty=SL.ground-SL.isz*.5-row*SL.isz*.95;
+}
+function slLand(it,bucket){
+  it.state='rest';
+  if(bucket){
+    const b=SL.bk, k=SL.inBucket++;
+    slSet(it,b.x+((k%3)-1)*SL.isz*.45,SL.ground-SL.isz*.55-Math.floor(k/3)*SL.isz*.35,0);
+    it.el.style.zIndex=2; SL.bucket.classList.remove('pop'); void SL.bucket.offsetWidth; SL.bucket.classList.add('pop');
+    tone(300,0,.12,'sine',.2,150);                   // ぽすっ
+  }else{
+    slSet(it,it.tx,it.ty,0); tone(260,0,.1,'triangle',.15,180);
+  }
+  chime(SL.slid.size%5); burst({x:it.x+board.getBoundingClientRect().left,y:it.y+board.getBoundingClientRect().top});
+  SL.slid.add(it);
+  dinoEl.style.setProperty('--p',(.06+.3*SL.slid.size/SL.items.length).toFixed(3));
+  if(!SL.done&&SL.slid.size===SL.items.length){SL.done=true;won=true;setTimeout(()=>{confetti();sayName('ぜんぶ すべった！','ja-JP',win)},500)}
+}
+function slDown(e){
+  const el=e.target.closest('#sl .it'); if(!SL||!el||won||sd) return;
+  const it=SL.items.find(q=>q.el===el); if(!it||it.state==='slide'||it.state==='fly'||it.state==='floor') return;
+  e.preventDefault(); ac(); tick();
+  if(it.state==='rest'&&!SL.bucket){ /* 床から もういちど */ }
+  const q=lp(e); sd={it,id:e.pointerId,off:{x:q.x-it.x,y:q.y-it.y}};
+  it.state='drag'; el.classList.remove('back'); el.classList.add('drag'); el.style.zIndex='';
+}
+function slMove(e){
+  if(e.pointerId!==sd.id) return;
+  const q=lp(e), it=sd.it; slSet(it,q.x-sd.off.x,q.y-sd.off.y,0);
+  const st=SL.pts[0], d=Math.hypot(it.x-st[0],it.y-(st[1]-SL.isz*.55)), R=SL.isz*1.3;
+  SL.here.classList.toggle('on',d<R*1.6);
+  if(d<R){ sd=null; slStart(it) }                    // てっぺんに近づいたら、すべりはじめる
+}
+function slUp(e){
+  if(e.pointerId!==sd.id) return;
+  const it=sd.it; sd=null; it.el.classList.remove('drag'); SL.here.classList.remove('on');
+  it.state='tray'; it.el.classList.add('back'); slSet(it,it.home.x,it.home.y,0);
+  setTimeout(()=>it.el.classList.remove('back'),380);
+}
+
 /* ===== みち ===== */
 const roadSvg=$('#road');
 let R=null, md=null;
@@ -2409,6 +2633,7 @@ function win(){
   if(game==='nuri'){clears.nuri++;save('nuriN',clears.nuri)}
   if(game==='tet'){clears.tet++;save('tetN',clears.tet)}
   if(game==='fuku'){clears.fuku++;save('fukuN',clears.fuku)}
+  if(game==='sl'){clears.sl++;save('slN',clears.sl)}
   fanfare(); const wt=sayTok;
   setTimeout(()=>{if(wt===sayTok&&won)utter(`できたね！ ${dino.n}だよ！`)},1700);
   setTimeout(()=>{document.body.classList.add('won');dinoEl.className='reveal'+(dino.fly?' fly':'');confetti()},450);
@@ -2492,6 +2717,8 @@ document.querySelectorAll('#gameSeg button').forEach(b=>b.addEventListener('clic
       const lv=tetLevel(); clears.tet=lv>=TET_LV.length?0:TET_LV[lv]; save('tetN',clears.tet); ac(); tick(); newRound();
     }else if(game==='fuku'){
       const lv=fukuLevel(); clears.fuku=lv>=FUKU_LV.length?0:FUKU_LV[lv]; save('fukuN',clears.fuku); ac(); tick(); newRound();
+    }else if(game==='sl'){
+      const lv=slLevel(); clears.sl=lv>=SL_LV.length?0:SL_LV[lv]; save('slN',clears.sl); ac(); tick(); newRound();
     }
     return;
   }
